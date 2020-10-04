@@ -1,6 +1,10 @@
 ---
 title: "Untitled"
-output: ioslides_presentation
+output: 
+  ioslides_presentation:
+    df_print: paged
+    smaller: false
+    widescreen: true
 ---
 
 ```{r setup, include=FALSE}
@@ -9,22 +13,47 @@ require(tidyverse)
 here::here()
 ```
 
-## 厚生労働省オープンデータ（集計データ）
+
+## 分析対象データ
+今回利用するデータは以下の中から任意に選択してください。
 
 
-## JAG Japan
+データ名                 | 区分 | 種別 | ダウンロード | 備考
+-------------------------|------|------|--------------|------------------------
+厚生労働省オープンデータ | 公開 | 集計 | 可           | 項目単位で集計したものを個別ファイルで公開
+JAG Japan                | 公開 | 個別 | 可           | GIS処理用データ付き
+EDAサロン（Exploratory ）| 公開 | 個別 | 可（制限有） | アカウント所有者のみ可 
+
+
+## 厚生労働省オープンデータ（集計データ／公開・公式）
+河野大臣まはたデジタル庁が使いやすくしてくれることを期待。
 ```{r}
-"./Covid19/COVID-19.csv" %>% 
-  read.csv()
-  # readr::read_csv()
-```
-
-
-## Exploratory EDAサロン
-```{r}
-"./Covid19/Exploratory_Covid19_UTF8.csv" %>% 
+"https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
   readr::read_csv()
 ```
 
 
 
+## JAG Japan （個別データ／公開・非公式）
+[新型コロナ感染者数マップ](https://gis.jag-japan.com/covid19jp/)。各項に揺れあり。
+```{r, message=FALSE, warning=FALSE, error=FALSE}
+"https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
+  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
+```
+
+
+## Exploratory EDAサロン（個別データ／公開・非公式）
+```{r}
+"./Covid19/Exploratory_Covid19_UTF8.csv" %>% 
+  readr::read_csv(locale = readr::locale(encoding = "UTF-8"))
+```
+
+
+## 注意点
+
+* どのデータも`readr::read_csv`関数で読み込んでください（特にWindows環境）
+* JAG Japanのデータは多数の揺れや不要データが含まれていますので注意してください
+    * エラー回避のため`readr::read_csv`関数で`guess_max=5000`を指定してください
+    * 読み込んだ後に各項目のデータ型を確認し、必要に応じて変換してください
+    * W列（22列）目以降はGIS処理用なので捨ててください
+* EDAサロンのデータは文字コードに応じて二種類準備していますので、お好みで
