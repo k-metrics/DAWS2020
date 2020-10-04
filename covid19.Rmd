@@ -1,0 +1,30 @@
+---
+title: "Untitled"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+require(tidyverse)
+here::here()
+```
+
+## 厚生労働省オープンデータ（集計データ）
+
+
+## JAG Japan
+```{r}
+"./Covid19/COVID-19.csv" %>% 
+  read.csv()
+  # readr::read_csv()
+```
+
+
+## Exploratory EDAサロン
+```{r}
+"./Covid19/Exploratory_Covid19_UTF8.csv" %>% 
+  readr::read_csv()
+```
+
+
+

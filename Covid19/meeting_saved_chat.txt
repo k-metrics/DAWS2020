@@ -1,0 +1,8 @@
+20:19:47	 開始 げんき まつだ : https://www.kokuchpro.com/event/db1e95d1457e5ab9b7ef21d8b8788ebe/
+20:31:53	 開始 鈴木さんぽう : https://www.mhlw.go.jp/stf/covid-19/open-data.html
+20:32:07	 開始 鈴木さんぽう : 厚生労働省のオープンデータ
+20:32:21	 開始 鈴木さんぽう : CSV形式らしいですが、まだ、内容未確認
+20:36:21	 開始 鈴木さんぽう : このデータだとjoin処理が必要なので、まあ、いいかも
+20:44:45	 開始 鈴木さんぽう : これは、集計結果だけなので、あまり面白味はないかも
+20:50:24	 開始 鈴木さんぽう : こういうデータがいろいろとやる必要があるので、いいかもhttps://ja.exploratory.io/data/GMq1Qom5tS/by-covid19japan-com-WTq0qPP6lD
+20:52:54	 開始 Yuki Watada : https://gis.jag japan.com/covid19jp/
