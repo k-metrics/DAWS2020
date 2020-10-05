@@ -1,0 +1,107 @@
+---
+title: "Untitled"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse)
+require(jsonlite)
+```
+
+# 利用するデータ
+
+## Covid19
+[Covid19 Japan](https://covid19japan.com/)の公開データ。
+```{r, echo=FALSE}
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+df <- path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+
+df
+```
+
+
+## 都道府県
+都道府県と地方区分に関するデータは自作データ。
+```{r, echo=FALSE, message=FALSE}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(pcode = `コード`) %>% 
+  dplyr::mutate(pref = stringr::str_to_title(pref),
+                fct_pref = forcats::as_factor(pref))
+
+prefs
+```
+
+## サマライズ
+```{r}
+df %>% 
+  skimr::skim()
+```
+
+
+## Wrangring
+必要と思われる変量（フィーチャー）のみを適切な形式に変換し、地域区分でも分析できるように都道府県データと結合。
+```{r}
+x <- df %>% 
+  dplyr::mutate(dateAnnounced = lubridate::as_date(dateAnnounced),
+                ageBracket = forcats::as_factor(ageBracket),
+                gender = forcats::as_factor(gender),
+                patientStatus = forcats::as_factor(patientStatus),
+                residence = forcats::as_factor(residence),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE)) %>% 
+  dplyr::select(dateAnnounced, ageBracket, gender, detectedPrefecture,
+                patientStatus, knownCluster, cluster) %>% 
+  dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref"))
+
+x
+x %>% 
+  skimr::skim()
+```
+
+# 可視化
+
+## 全体傾向
+
+```{r}
+date <- x %>% 
+  with(seq(range(dateAnnounced)[1], range(dateAnnounced)[2], by = "day")) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(date = 1)
+
+sec_scale <- 50
+
+x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(dateAnnounced) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+  dplyr::mutate(n = ifelse(is.na(n), 0, n)) %>% 
+  dplyr::mutate(cum = cumsum(n),
+                ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>%
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      fill = "dark green", alpha = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark red") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性確定数（日別）・7日間移動平均（濃赤折線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性確定数（折線）")
+    ) +
+    ggplot2::labs(title = paste0("Covid19, Japan（@", Sys.time(), "）"),
+                  subtitle = "", x = "日付")
+
+plotly::ggplotly()
+```
+
+
