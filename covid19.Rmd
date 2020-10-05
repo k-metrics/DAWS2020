@@ -1,5 +1,6 @@
 ---
-title: "Untitled"
+title: "分析用データについて"
+subtitle: "CC 4.0 BY-SA-NC, Sampo Suzuki"
 output: 
   ioslides_presentation:
     df_print: paged
@@ -15,45 +16,110 @@ here::here()
 
 
 ## 分析対象データ
-今回利用するデータは以下の中から任意に選択してください。
+今回利用するデータは以下から任意に選択してください。すべてオンラインにてデータが取得できます。
 
 
 データ名                 | 区分 | 種別 | ダウンロード | 備考
 -------------------------|------|------|--------------|------------------------
-厚生労働省オープンデータ | 公開 | 集計 | 可           | 項目単位で集計したものを個別ファイルで公開
-JAG Japan                | 公開 | 個別 | 可           | GIS処理用データ付き
-EDAサロン（Exploratory ）| 公開 | 個別 | 可（制限有） | アカウント所有者のみ可 
+[厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) | 公開 | 集計 | 可           | 項目単位で集計したものを個別ファイルで公開
+[JAG Japan](https://gis.jag-japan.com/covid19jp/)                | 公開 | 個別 | 可           | GIS処理用データ付き
+[Covid19japan.com](https://covid19japan.com/)     | 公開 | 個別 | 可           | [GitHub](https://github.com/reustle/covid19japan-data)にてJSON形式で公開
 
 
-## 厚生労働省オープンデータ（集計データ／公開・公式）
-河野大臣まはたデジタル庁が使いやすくしてくれることを期待。
-```{r}
+
+## 厚生労働省オープンデータ（集計／公開・公式）
+河野行政改革担当大臣またはデジタル庁（仮称）に期待。
+```{r, message=FALSE}
 "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
   readr::read_csv()
 ```
 
 
+## 厚生労働省オープンデータの注意点
+厚生労働省のデータは各報告日時点の集計値が個別ファイルになっていますので、意味を把握してから分析してください。
 
-## JAG Japan （個別データ／公開・非公式）
-[新型コロナ感染者数マップ](https://gis.jag-japan.com/covid19jp/)。各項に揺れあり。
+データ名                       | 概要
+-------------------------------|-----------------------------------------------
+陽性者数                       | 新規に陽性と判断された者の数（除く空港検疫）
+PCR検査実施人数                | 当日と前日の累積人数の差（除く空港検疫）
+入院治療等を要する者の数       | 入院待機中・確認中を除く（除く空港検疫）
+退院又は治療解除となった者の数 | （除く空港検疫）
+死亡者数                       | （除く空港検疫）
+PCR検査の実施件数              | 暫定数値であり後日変更される可能性あり
+
+
+
+## JAG Japan （個別／公開・非公式）
+様々なサイトからの寄せ集めデータなので揺れが多数含まれています。
+
 ```{r, message=FALSE, warning=FALSE, error=FALSE}
 "https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
   readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
 ```
 
 
-## Exploratory EDAサロン（個別データ／公開・非公式）
-```{r}
-"./Covid19/Exploratory_Covid19_UTF8.csv" %>% 
-  readr::read_csv(locale = readr::locale(encoding = "UTF-8"))
+## JAG Japan データの注意点
+特徴的なのはGIS処理用のデータ列が用意されている点です。これらのデータは分析には必要ありませんので、削除しておくことをおすゝめします。各列（変量）の定義は [こちら](https://jag-japan.com/covid19map-readme/) で公開されています。なお、読み込み時は以下のオプションを指定してください。
+```{r, echo=TRUE, eval=FALSE}
+  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
 ```
 
 
-## 注意点
 
-* どのデータも`readr::read_csv`関数で読み込んでください（特にWindows環境）
-* JAG Japanのデータは多数の揺れや不要データが含まれていますので注意してください
-    * エラー回避のため`readr::read_csv`関数で`guess_max=5000`を指定してください
-    * 読み込んだ後に各項目のデータ型を確認し、必要に応じて変換してください
-    * W列（22列）目以降はGIS処理用なので捨ててください
-* EDAサロンのデータは文字コードに応じて二種類準備していますので、お好みで
+## Covid19japan.com（個別／公開・非公式）
+Exploratory EDA Salonで公開されているデータのオリジナルで、JSON形式で公開されています。JAG Japanのデータと同様に揺れがあります。
+
+```{r}
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  readr::read_lines() %>% 
+  paste0("https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/", .) %>% 
+  jsonlite::fromJSON()
+  # %>% 
+  # dplyr::distinct(detectedPrefecture) %>% dplyr::arrange(detectedPrefecture) %>% readr::write_excel_csv("./Covid19/prefs.csv")
+```
+
+
+## Covid19japan.com データの注意点
+[GitHub](https://github.com/reustle/covid19japan-data) から`jsonlite`パッケージを利用して以下のコードで読み込みます。
+
+```{r, echo=TRUE, eval=FALSE}
+library(jsonlite)
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+```
+
+`path`の2行は表示用に分割したので、実行時にはつなげて1行にしても問題ありません。
+
+
+
+## ポイントなど
+* `tidyverse`パッケージを必ずインストールしておいてください
+    * `readr`ならびに`jsonlite`パッケージは`tidyverse`パッケージに含まれます
+* 読み込みには`readr::read_csv`関数を用います
+    * ファイルにURLを指定すれば直接サイトから読み込むことができます
+    * 文字化けする場合は`locale`オプションを指定してください
+    * JAG Japanのデータでは`guess_max = 5000`オプションを指定してください
+    * Warningなどが表示された場合は必ず読んでください
+* 読み込んだデータは各列（変量）のデータ型を必ず確認してください
+    * 特に文字（chr）型になっている変量には注意してください
+* 地方区分を使う場合は [こちら]() を使ってください
+
+
+
+## おまけ（八地方区分）
+地方区分 | 含まれる都道府県
+-------|-----------------------------------------------------------------------
+北海道 | 北海道
+東北   | 青森県・岩手県・秋田県・宮城県・山形県・福島県
+関東   | 茨城県・栃木県・群馬県・埼玉県・千葉県・東京都・神奈川県
+中部   | 山梨県・長野県・新潟県・富山県・石川県・福井県・静岡県・愛知県・岐阜県
+近畿   | 三重県・滋賀県・京都府・大阪府・兵庫県・奈良県・和歌山県
+中国   | 鳥取県・島根県・岡山県・広島県・山口県
+四国   | 香川県・愛媛県・徳島県・高知県
+九州   | 福岡県・佐賀県・長崎県・熊本県・大分県・宮崎県・鹿児島県・沖縄県
