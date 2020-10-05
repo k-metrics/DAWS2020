@@ -8,6 +8,12 @@ output:
     widescreen: true
 ---
 
+```{css, echo=FALSE}
+h1 {border-bottom: solid 2.5px}
+h2 {border-bottom: solid 2.0px}
+h3 {border-bottom: solid 1.5px}
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 require(tidyverse)
@@ -16,7 +22,7 @@ here::here()
 
 
 ## 分析対象データ
-今回利用するデータは以下から任意に選択してください。すべてオンラインにてデータが取得できます。
+今回利用する新型コロナウィルスに関するデータは以下から任意に選択してください。すべてオンラインにてデータが取得できます。
 
 
 データ名                 | 区分 | 種別 | ダウンロード | 備考
@@ -24,6 +30,9 @@ here::here()
 [厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) | 公開 | 集計 | 可           | 項目単位で集計したものを個別ファイルで公開
 [JAG Japan](https://gis.jag-japan.com/covid19jp/)                | 公開 | 個別 | 可           | GIS処理用データ付き
 [Covid19japan.com](https://covid19japan.com/)     | 公開 | 個別 | 可           | [GitHub](https://github.com/reustle/covid19japan-data)にてJSON形式で公開
+
+　  
+その他、任意のデータを用いても構いませんがデータの出典と説明を記述しておいてください。
 
 
 
@@ -50,8 +59,6 @@ PCR検査の実施件数              | 暫定数値であり後日変更され�
 
 
 ## JAG Japan （個別／公開・非公式）
-様々なサイトからの寄せ集めデータなので揺れが多数含まれています。
-
 ```{r, message=FALSE, warning=FALSE, error=FALSE}
 "https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
   readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
@@ -59,28 +66,33 @@ PCR検査の実施件数              | 暫定数値であり後日変更され�
 
 
 ## JAG Japan データの注意点
-特徴的なのはGIS処理用のデータ列が用意されている点です。これらのデータは分析には必要ありませんので、削除しておくことをおすゝめします。各列（変量）の定義は [こちら](https://jag-japan.com/covid19map-readme/) で公開されています。なお、読み込み時は以下のオプションを指定してください。
+特徴的なのはW列（23列）目以降にGIS処理用の変量（フィーチャー）が用意されている点です。これらの変量は分析には必要ありませんので、削除しておくことをおすゝめします。また、インスタンスには多数の揺れが含まれている点に注意してください。  
+   
+なお、読み込み時は以下のオプションを指定しないとWinodws環境ではエラーになります。
 ```{r, echo=TRUE, eval=FALSE}
   readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
 ```
 
+各列（変量）の定義は [こちら](https://jag-japan.com/covid19map-readme/) で公開されています。  
+
 
 
 ## Covid19japan.com（個別／公開・非公式）
-Exploratory EDA Salonで公開されているデータのオリジナルで、JSON形式で公開されています。JAG Japanのデータと同様に揺れがあります。
-
+Exploratory EDA Salonにあるデータのオリジナルで、JSON形式で公開されています。
 ```{r}
-"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+path %>% 
+  paste0("latest.json") %>% 
   readr::read_lines() %>% 
-  paste0("https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/", .) %>% 
+  paste0(path, .) %>% 
   jsonlite::fromJSON()
-  # %>% 
-  # dplyr::distinct(detectedPrefecture) %>% dplyr::arrange(detectedPrefecture) %>% readr::write_excel_csv("./Covid19/prefs.csv")
 ```
 
 
 ## Covid19japan.com データの注意点
-[GitHub](https://github.com/reustle/covid19japan-data) から`jsonlite`パッケージを利用して以下のコードで読み込みます。
+[GitHub](https://github.com/reustle/covid19japan-data) から`jsonlite`パッケージを利用して以下のコードで読み込んでください。`readr::read_csv`関数では正しく読み込めません。
 
 ```{r, echo=TRUE, eval=FALSE}
 library(jsonlite)
@@ -94,21 +106,21 @@ path %>%
   jsonlite::fromJSON()
 ```
 
-`path`の2行は表示用に分割したので、実行時にはつなげて1行にしても問題ありません。
+`path`の2行は表示用に分割しています。また、JAG Japanのデータと同様に揺れがあります。
 
 
 
-## ポイントなど
+## データを扱う上でのポイントなど
 * `tidyverse`パッケージを必ずインストールしておいてください
     * `readr`ならびに`jsonlite`パッケージは`tidyverse`パッケージに含まれます
-* 読み込みには`readr::read_csv`関数を用います
-    * ファイルにURLを指定すれば直接サイトから読み込むことができます
+* CSVの読み込みには`readr::read_csv`関数を用います
+    * ファイルにURLを指定すれば読み込むことができます
     * 文字化けする場合は`locale`オプションを指定してください
-    * JAG Japanのデータでは`guess_max = 5000`オプションを指定してください
     * Warningなどが表示された場合は必ず読んでください
 * 読み込んだデータは各列（変量）のデータ型を必ず確認してください
     * 特に文字（chr）型になっている変量には注意してください
-* 地方区分を使う場合は [こちら]() を使ってください
+* 都道府県の地方区分を使う場合は [こちら](https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv) を使ってください
+* 提示コードはGoogle Colabでも動作確認済
 
 
 
