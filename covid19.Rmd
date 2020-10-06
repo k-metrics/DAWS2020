@@ -6,15 +6,15 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 require(tidyverse)
 require(jsonlite)
 ```
 
-# 利用するデータ
+# Data Import
 
-## Covid19
-[Covid19 Japan](https://covid19japan.com/)の公開データ。
+## Covid19 Data
+[Covid19 Japan](https://covid19japan.com/)の公開データを使います。
 ```{r, echo=FALSE}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
 path <- paste0(path, "docs/patient_data/")
@@ -28,31 +28,38 @@ df <- path %>%
 df
 ```
 
+　  
 
-## 都道府県
-都道府県と地方区分に関するデータは自作データ。
+## 都道府県データ
+都道府県と地方区分に関するデータは自作データで都道府県コード（`pcode`）順で各区分を因子化してあります。
 ```{r, echo=FALSE, message=FALSE}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
   dplyr::rename(pcode = `コード`) %>% 
   dplyr::mutate(pref = stringr::str_to_title(pref),
-                fct_pref = forcats::as_factor(pref),
-                `八地方区分` = forcats::as_factor(`八地方区分`),
-                `広域圏` = forcats::as_factor(`広域圏`),
-                `通俗的区分` = forcats::as_factor(`通俗的区分`))
+                pcode = forcats::fct_inorder(pcode),
+                fct_pref = forcats::fct_inorder(pref),
+                `都道府県` = forcats::fct_inorder(`都道府県`),
+                `八地方区分` = forcats::fct_inorder(`八地方区分`),
+                `広域圏` = forcats::fct_inorder(`広域圏`),
+                `通俗的区分` = forcats::fct_inorder(`通俗的区分`))
 
 prefs
 ```
 
-## サマライズ
+　  
+
+## Summarize
+オリジナルのデータがどのようになっているか`skimr`パッケージを用いてサマライズしてみます。元がJSON形式なので、読み込んだ直後は殆どの変量（フィーチャー）が文字型になっているのと欠損値が多いことが分かります。
 ```{r}
 df %>% 
   skimr::skim()
 ```
 
+　  
 
-## Wrangring
-必要と思われる変量（フィーチャー）のみを適切な形式に変換し、地域区分でも分析できるように都道府県データと結合。
+# Data Wrangling
+各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合します。
 ```{r}
 x <- df %>% 
   dplyr::mutate(dateAnnounced = lubridate::as_date(dateAnnounced),
@@ -70,31 +77,38 @@ x %>%
   skimr::skim()
 ```
 
-# 可視化
+　  
+文字型を因子型に変換するだけでも、変量（フィーチャー）内の水準の比率が大まかにつかめるようになります。  
+例えば、年代別の陽性判定者数は20代が最も多く、続いて、30代、40代と働き盛りの世代に多いことが分かります。また、都道府県別では、東京、大阪、神奈川、愛知と成っていますが、地方区分別では、以外にも関東、大阪の次に九州がきていることが分かります。
+
+　  
+
+# Data Visualizing
 
 ## 全体傾向
 
-```{r}
+```{r, include=FALSE}
 date <- x %>% 
   with(seq(range(dateAnnounced)[1], range(dateAnnounced)[2], by = "day")) %>% 
   as.data.frame() %>% 
   dplyr::rename(date = 1)
+```
 
+```{r}
 sec_scale <- 50
 
 x %>% 
   dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::group_by(dateAnnounced) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
   dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
   dplyr::mutate(cum = cumsum(n),
                 ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>%
-  # print() %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
                       fill = "dark green", alpha = 0.5) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+                       colour = "dark green") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark red") + 
     ggplot2::scale_y_continuous(
       name = "陽性確定数（日別）・7日間移動平均（濃赤折線）",
@@ -107,21 +121,37 @@ x %>%
 plotly::ggplotly()
 ```
 
+
+### 地方区分別
+都道府県別では区分が多すぎるので八地方区分別の積上げ棒グラフを描いてみます。サマリで見たように九州地方が以外にも多いことが読み取れます。
 ```{r}
 x %>% 
   dplyr::filter(!is.na(fct_pref)) %>% 
-  # dplyr::mutate(`八地方区分` = forcats::fct_relevel(`八地方区分`,
-  #                                              "北海道地方", "東北地方",
-  #                                              "関東地方", "中部地方",
-  #                                              "近畿地方", "中国地方",
-  #                                              "四国地方", "九州地方")) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
   dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
   dplyr::mutate(cum = cumsum(n),
                 ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date, fill = `八地方区分`)) + 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
+    ggplot2::scale_fill_brewer(palette = "Set3")
+```
+
+　  
+さらに分かりやすくするために関東、中部、近畿、九州の四地区を除く他の地区をその他としてまとめてみます。
+```{r}
+x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
+  dplyr::mutate(`八地方区分` = forcats::fct_collapse(`八地方区分`,
+                                                `その他地方` = c("北海道地方",
+                                                          "東北地方",
+                                                          "中国地方",
+                                                          "四国地方"))) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
     ggplot2::scale_fill_brewer(palette = "Set3")
 ```
@@ -129,39 +159,70 @@ x %>%
 ```{r}
 x %>% 
   dplyr::filter(!is.na(fct_pref)) %>% 
-  # dplyr::mutate(`八地方区分` = forcats::fct_relevel(`八地方区分`,
-  #                                              "北海道地方", "東北地方",
-  #                                              "関東地方", "中部地方",
-  #                                              "近畿地方", "中国地方",
-  #                                              "四国地方", "九州地方")) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
-  dplyr::mutate(cum = cumsum(n),
-                ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>% 
-  dplyr::mutate(`八地方区分` = forcats::fct_collapse(`八地方区分`,
-                                                `その他` = c("北海道地方",
-                                                          "東北地方",
-                                                          # "中部地方",
-                                                          "中国地方",
-                                                          "四国地方"))) %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date, fill = `八地方区分`)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
-    ggplot2::scale_fill_brewer(palette = "Set3")
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = `八地方区分`, values_from = n) %>% 
+  dplyr::mutate_if(is.integer, list(~tidyr::replace_na(., 0L))) %>% 
+  tidyr::pivot_longer(cols = -dateAnnounced,
+                      names_to = "八地方区分", values_to = "n") %>% 
+  dplyr::mutate(`八地方区分` = forcats::fct_relevel(`八地方区分`,
+                                              "北海道地方", "東北地方",
+                                              "関東地方", "中部地方",
+                                              "近畿地方", "中国地方",
+                                              "四国地方", "九州地方")) %>%
+  dplyr::group_by(`八地方区分`) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, y = cum,
+                               fill = `八地方区分`)) +
+    ggplot2::geom_area(stat = "identity", alpha = 1,
+                       position = ggplot2::position_stack(reverse = FALSE)) +
+    ggplot2::scale_fill_brewer(palette = "Set3") +
+    ggplot2::labs(title = paste0("Covid19（@", Sys.time(), "）"),
+                  y = "累計人数")
+
 ```
+
+　  
+九州が8月頃から急増しているのは、県別に見ると福岡と沖縄での急増が原因と分かります。
+```{r}
+x %>% 
+  dplyr::filter(`八地方区分` == "九州地方") %>% 
+  dplyr::group_by(dateAnnounced, `都道府県`) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = `都道府県`, values_from = n) %>% 
+  dplyr::mutate_if(is.integer, list(~tidyr::replace_na(., 0L))) %>% 
+  tidyr::pivot_longer(cols = -dateAnnounced,
+                      names_to = "都道府県", values_to = "n") %>% 
+  dplyr::mutate(`都道府県` = forcats::fct_relevel(`都道府県`,
+                                              "福岡県", "佐賀県", "長崎県",
+                                              "熊本県", "大分県", "宮崎県",
+                                              "鹿児島県", "沖縄県")) %>%
+  dplyr::group_by(`都道府県`) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, y = cum,
+                               fill = `都道府県`)) +
+    ggplot2::geom_area(stat = "identity", alpha = 1,
+                       position = ggplot2::position_stack(reverse = FALSE)) +
+    ggplot2::scale_fill_brewer(palette = "Set3") +
+    ggplot2::labs(title = paste0("Covid19, 九州地方（@", Sys.time(), "）"),
+                  y = "累計人数")
+
+```
+
+　  
+
 ### クラスタ比率
 ```{r}
 x %>% 
   dplyr::filter(!is.na(fct_pref)) %>% 
-  # dplyr::mutate(`八地方区分` = forcats::fct_relevel(`八地方区分`,
-  #                                              "北海道地方", "東北地方",
-  #                                              "関東地方", "中部地方",
-  #                                              "近畿地方", "中国地方",
-  #                                              "四国地方", "九州地方")) %>% 
   dplyr::group_by(`八地方区分`, cluster) %>% 
   dplyr::summarise(n = n()) %>% 
   tidyr::pivot_wider(names_from = cluster, values_from = n) %>% 
-  dplyr::mutate(ratio = (`TRUE` / (`TRUE` + `FALSE`) * 100) %>% round(1))
+  dplyr::mutate(ratio = (`TRUE` / (`TRUE` + `FALSE`) * 100) %>% round(1)) %>% 
+  dplyr::rename(`地方` = `八地方区分`,
+                `非クラスタ感染者` = `FALSE`, `クラスタ感染者` = `TRUE`,
+                `クラスタ比率[%]` = ratio)
 ```
 
