@@ -1,0 +1,194 @@
+---
+title: "分析用データについて"
+subtitle: "CC 4.0 BY-SA-NC, Sampo Suzuki"
+output: 
+  ioslides_presentation:
+    df_print: paged
+    smaller: false
+    widescreen: true
+---
+
+```{css, echo=FALSE}
+h1 {border-bottom: solid 2.5px}
+h2 {border-bottom: solid 2.0px}
+h3 {border-bottom: solid 1.5px}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+require(tidyverse)
+here::here()
+```
+
+
+## 分析対象データ
+今回利用する新型コロナウィルスに関するデータは以下から任意に選択してください。すべてオンラインにてデータが取得できます。
+
+
+データ名                 | 区分 | 種別 | ダウンロード | 備考
+-------------------------|------|------|--------------|------------------------
+[厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) | 公開 | 集計 | 可           | 項目単位で集計したものを個別ファイルで公開
+[JAG Japan](https://gis.jag-japan.com/covid19jp/)                | 公開 | 個別 | 可           | GIS処理用データ付き
+[Covid19japan.com](https://covid19japan.com/)     | 公開 | 個別 | 可           | [GitHub](https://github.com/reustle/covid19japan-data)にてJSON形式で公開
+
+　  
+その他、任意のデータを用いても構いませんがデータの出典と説明を明記してください。
+
+
+# データ概略
+
+## 厚生労働省オープンデータ（集計／公開・公式）
+河野行政改革担当大臣またはデジタル庁（仮称）に期待。
+
+```{r, message=FALSE}
+"https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
+  readr::read_csv()
+```
+
+
+## 厚生労働省オープンデータの注意点
+厚生労働省のデータは各報告日時点の集計値が個別ファイルになっていますので、意味を把握してから分析してください。
+
+データ名                       | 概要
+-------------------------------|-----------------------------------------------
+陽性者数                       | 新規に陽性と判断された者の数（除く空港検疫）
+PCR検査実施人数                | 当日と前日の累積人数の差（除く空港検疫）
+入院治療等を要する者の数       | 入院待機中・確認中を除く（除く空港検疫）
+退院又は治療解除となった者の数 | （除く空港検疫）
+死亡者数                       | （除く空港検疫）
+PCR検査の実施件数              | 暫定数値であり後日変更される可能性あり
+
+
+
+## JAG Japan （個別／公開・非公式）
+日本国内の各サイトから収集・整理して公開しているデータ。
+
+```{r, message=FALSE, warning=FALSE, error=FALSE}
+"https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
+  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
+```
+
+
+## JAG Japan データの注意点
+特徴的なのはW列（23列）目以降にGIS処理用の変量（フィーチャー）が用意されている点です。これらの変量は分析には必要ありませんので、削除しておくことをおすゝめします。また、インスタンスには多数の揺れが含まれている点に注意してください。  
+   
+なお、読み込み時は以下のオプションを指定しないとWinodws環境ではエラーになります。
+```{r, echo=TRUE, eval=FALSE}
+  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
+```
+
+各列（変量）の定義は [こちら](https://jag-japan.com/covid19map-readme/) で公開されています。  
+
+
+
+## Covid19japan.com（個別／公開・非公式）
+Exploratory EDA Salonにあるデータのオリジナル。JSON形式で公開されている。
+
+```{r}
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+```
+
+
+## Covid19japan.com データの注意点
+[GitHub](https://github.com/reustle/covid19japan-data) から`jsonlite`パッケージを利用して以下のコードで読み込んでください。`readr::read_csv`関数では正しく読み込めません。
+
+```{r, echo=TRUE, eval=FALSE}
+library(jsonlite)
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+```
+
+`path`の2行は表示用に分割しています。また、JAG Japanのデータと同様に揺れがあります。
+
+
+
+## データを扱う上でのポイントなど
+* `tidyverse`パッケージを必ずインストールしておいてください
+    * `readr`ならびに`jsonlite`パッケージは`tidyverse`パッケージに含まれます
+* CSVの読み込みには`readr::read_csv`関数を用います
+    * ファイルにURLを指定すれば読み込むことができます
+    * 文字化けする場合は`locale`オプションを指定してください
+    * Warningなどが表示された場合は必ず読んでください
+* 読み込んだデータは各列（変量）のデータ型を必ず確認してください
+    * 特に文字（chr）型になっている変量には注意してください
+* 都道府県の地方区分を使う場合は [こちら](https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv) を使ってください
+* 提示コードはGoogle Colabでも動作確認済
+
+
+
+# おまけ
+
+## 八地方区分
+地方区分 | 含まれる都道府県
+-------|-----------------------------------------------------------------------
+北海道 | 北海道
+東北   | 青森県・岩手県・秋田県・宮城県・山形県・福島県
+関東   | 茨城県・栃木県・群馬県・埼玉県・千葉県・東京都・神奈川県
+中部   | 山梨県・長野県・新潟県・富山県・石川県・福井県・静岡県・愛知県・岐阜県
+近畿   | 三重県・滋賀県・京都府・大阪府・兵庫県・奈良県・和歌山県
+中国   | 鳥取県・島根県・岡山県・広島県・山口県
+四国   | 香川県・愛媛県・徳島県・高知県
+九州   | 福岡県・佐賀県・長崎県・熊本県・大分県・宮崎県・鹿児島県・沖縄県
+
+
+
+## 地方区分を使った集計事例
+一時期、かなり騒がれた「クラスタ」で感染し陽性と判断された割合がどの程度なのかを地方毎にクロス集計してみました。中国・四国地方を除くと結果的にはクラスタ感染を押さえられたと言えそうです。
+
+```{r, echo=FALSE, message=FALSE}
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
+path <- paste0(path, "docs/patient_data/")
+
+df <- path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(pcode = `コード`) %>% 
+  dplyr::mutate(pref = stringr::str_to_title(pref),
+                fct_pref = forcats::as_factor(pref),
+                `八地方区分` = forcats::as_factor(`八地方区分`),
+                `広域圏` = forcats::as_factor(`広域圏`),
+                `通俗的区分` = forcats::as_factor(`通俗的区分`))
+
+x <- df %>% 
+  dplyr::mutate(dateAnnounced = lubridate::as_date(dateAnnounced),
+                ageBracket = forcats::as_factor(ageBracket),
+                gender = forcats::as_factor(gender),
+                patientStatus = forcats::as_factor(patientStatus),
+                residence = forcats::as_factor(residence),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE)) %>% 
+  dplyr::select(dateAnnounced, ageBracket, gender, detectedPrefecture,
+                patientStatus, knownCluster, cluster) %>% 
+  dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref"))
+
+x %>% 
+  # dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(`八地方区分`, cluster) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::pivot_wider(names_from = cluster, values_from = n) %>% 
+  dplyr::mutate(ratio = (`TRUE` / (`TRUE` + `FALSE`) * 100) %>% round(1)) %>% 
+  dplyr::rename(`地方` = `八地方区分`,
+                `非クラスタ感染者` = `FALSE`, `クラスタ感染者` = `TRUE`,
+                `クラスタ比率[%]` = ratio)
+```
+
+
+
+# Enjoy!
