@@ -1,8 +1,13 @@
 ---
-title: "Covid19可視化事例"
+title: "Covid19, Japan"
 output:
   html_document:
     df_print: paged
+    theme: cerulean
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
 ---
 
 ```{r setup, include=FALSE}
@@ -11,14 +16,19 @@ require(tidyverse)
 require(jsonlite)
 ```
 
-# Data Import
+# Import
 
 ## Covid19 Data
-[Covid19 Japan](https://covid19japan.com/)の公開データを使います。
 ```{r, echo=FALSE}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
 path <- paste0(path, "docs/patient_data/")
 
+data_at <- readr::read_lines(paste0(path, "latest.json")) %>% 
+  stringr::str_sub(start = 1L, end = -6L)
+```
+
+[Covid19 Japan](https://covid19japan.com/)の公開データ（`r data_at`付）を使います。
+```{r, echo=FALSE}
 df <- path %>% 
   paste0("latest.json") %>% 
   readr::read_lines() %>% 
@@ -30,7 +40,7 @@ df
 
 　  
 
-## 都道府県データ
+## Area Data
 都道府県と地方区分に関するデータは自作データで都道府県コード（`pcode`）順で各区分を因子化してあります。
 ```{r, echo=FALSE, message=FALSE}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
@@ -49,6 +59,8 @@ prefs
 
 　  
 
+# Data Wrangling
+
 ## Summarize
 オリジナルのデータがどのようになっているか`skimr`パッケージを用いてサマライズしてみます。元がJSON形式なので、読み込んだ直後は殆どの変量（フィーチャー）が文字型になっているのと欠損値が多いことが分かります。
 ```{r}
@@ -58,7 +70,7 @@ df %>%
 
 　  
 
-# Data Wrangling
+## Transform
 各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合します。
 ```{r}
 x <- df %>% 
@@ -83,7 +95,7 @@ x %>%
 
 　  
 
-# Data Visualizing
+# Visualizing
 
 ## 全体傾向
 
@@ -118,7 +130,7 @@ x %>%
     ggplot2::labs(title = paste0("Covid19, Japan（@", Sys.time(), "）"),
                   subtitle = "", x = "日付")
 
-plotly::ggplotly()
+# plotly::ggplotly()
 ```
 
 
@@ -130,15 +142,13 @@ x %>%
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
   dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
-  dplyr::mutate(cum = cumsum(n),
-                ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
-    ggplot2::scale_fill_brewer(palette = "Set3")
+    ggplot2::scale_fill_brewer(palette = "Set1")
 ```
 
-　  
-さらに分かりやすくするために関東、中部、近畿、九州の四地区を除く他の地区をその他としてまとめてみます。
+折線グラフで表示してみます。
 ```{r}
 x %>% 
   dplyr::filter(!is.na(fct_pref)) %>% 
@@ -146,14 +156,48 @@ x %>%
   dplyr::summarise(n = n()) %>% 
   dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
   dplyr::mutate(cum = cumsum(n)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, colour = `八地方区分`)) + 
+    ggplot2::geom_line(ggplot2::aes(y = n)) +
+    ggplot2::scale_colour_brewer(palette = "Set1")
+```
+
+
+　  
+さらに分かりやすくするために関東、中部、近畿、九州の四地区を除く他の地区をその他としてまとめてみます。
+```{r}
+x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::mutate(`八地方区分` = forcats::fct_collapse(`八地方区分`,
                                                 `その他地方` = c("北海道地方",
                                                           "東北地方",
                                                           "中国地方",
                                                           "四国地方"))) %>% 
+  dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
-    ggplot2::scale_fill_brewer(palette = "Set3")
+    ggplot2::scale_fill_brewer(palette = "Set1")
+```
+
+
+```{r}
+x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::mutate(`八地方区分` = forcats::fct_collapse(`八地方区分`,
+                                                `その他地方` = c("北海道地方",
+                                                          "東北地方",
+                                                          "中国地方",
+                                                          "四国地方"))) %>% 
+  dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  dplyr::mutate(cum = cumsum(n)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, colour = `八地方区分`)) + 
+    ggplot2::geom_line(ggplot2::aes(y = n)) +
+    ggplot2::scale_colour_brewer(palette = "Set1") +
+    ggplot2::facet_wrap(~ `八地方区分`, ncol = 2)
 ```
 
 ```{r}
@@ -224,5 +268,117 @@ x %>%
   dplyr::rename(`地方` = `八地方区分`,
                 `非クラスタ感染者` = `FALSE`, `クラスタ感染者` = `TRUE`,
                 `クラスタ比率[%]` = ratio)
+```
+
+
+
+# Modeling
+
+## 時系列（TS）分析
+日毎の陽性判定者数を時系列データ形式に変換します。判定者数がゼロの日は報告されていないので、最初の陽性判定者が出た日から日日次のカレンダーデータを作成して結合してます。なお、時系列データ形式の周期については日次データなので7日間を周期として設定しておきます（考え方によっては約1ヶ月ごとで4週間=28日を周期にするのもありかと思います）。
+```{r}
+ts_x <- x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(dateAnnounced) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+  dplyr::select(-date) %>%
+  ts(frequency = 1)
+  
+tsw_x <- x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(dateAnnounced) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+  dplyr::select(-date) %>%
+  ts(frequency = 7)
+
+tsm_x <- x %>% 
+  dplyr::filter(!is.na(fct_pref)) %>% 
+  dplyr::group_by(dateAnnounced) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+  dplyr::select(-date) %>%
+  ts(frequency = 28)
+```
+
+時系列データに変換したものをプロットすると可視化の項でプロットした棒グラフと同じ形のグラフになることが分かります。
+```{r}
+ts_x %>% 
+  plot()
+tsw_x %>% 
+  plot()
+tsm_x %>% 
+  plot()
+```
+
+上記からトレンド（長期的傾向）を除いたグラフ。
+```{r}
+ts_x %>% 
+  base::diff() %>% 
+  plot()
+
+tsw_x %>% 
+  base::diff() %>% 
+  plot()
+
+tsm_x %>% 
+  base::diff() %>% 
+  plot()
+```
+
+```{r}
+tsw_x %>% 
+  stats::decompose() %>% 
+  plot()
+
+tsm_x %>% 
+  stats::decompose() %>% 
+  plot()
+```
+
+スペクトル密度を推定するためのスペクトル密度の推定
+```{r}
+ts_x %>% 
+  spec.pgram()
+
+tsw_x %>% 
+  spec.pgram()
+
+tsm_x %>% 
+  spec.pgram()
+
+```
+
+自己回帰によるスペクトラム解析
+```{r}
+spectrum(ts_x, method="ar")
+spectrum(tsw_x, method="ar")
+spectrum(tsm_x, method="ar")
+```
+
+
+# Infer
+
+## ARIMA Model
+ARIMA（自己回帰和分移動平均）モデルによる予測を行ってみます。予測に必要なパラメータはステップワイズにより自動的に最適なものが選択されます。
+```{r}
+ts_x %>% 
+  forecast::auto.arima() %>% 
+  forecast::forecast() %>% 
+  plot()
+
+tsw_x %>% 
+  forecast::auto.arima() %>% 
+  forecast::forecast() %>% 
+  plot()
+
+tsm_x %>% 
+  forecast::auto.arima() %>% 
+  forecast::forecast() %>% 
+  plot()
 ```
 
