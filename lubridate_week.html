@@ -2790,9 +2790,11 @@ div.tocify {
 </div>
 
 
-<div id="複数の決め方がある" class="section level1">
-<h1>複数の決め方がある</h1>
-<p>週番号（暦週）には複数の決め方があるので、使い道に合わせて選択すること。特にカレンダーを意識して週番号を求めたい場合は要注意。カレンダーヒートマップを作成する際にハマりました。</p>
+<p>カレンダーヒートマップ（GitHubなどで使われているカレンダー形式のヒートマップ）を作成する時にハマった経験からの話。</p>
+<p><img src="data:image/png;base64,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" alt="例" /> 　</p>
+<div id="複数の求め方がある" class="section level1">
+<h1>複数の求め方がある</h1>
+<p>週番号（暦週）には複数の求め方があるので、使い道に合わせて選択する。特にカレンダーを意識して週番号を求めたい場合は要注意。</p>
 <table>
 <thead>
 <tr class="header">
@@ -2805,7 +2807,7 @@ div.tocify {
 <tbody>
 <tr class="odd">
 <td>week</td>
-<td>lubridate</td>
+<td>N/A</td>
 <td><strong>1月1日を第1週</strong>とし7日単位で1を加算</td>
 <td>不定</td>
 </tr>
@@ -2823,7 +2825,7 @@ div.tocify {
 </tr>
 </tbody>
 </table>
-<p>ちなみに、Googleカレンダーでは週始まりの曜日設定によりISOかEPIに切り替わる。「土曜日」始まりに設定した場合もISO/EPIの定義と同様の処理ではあるが週初日の曜日がずれる点に注意。<br />
+<p>ちなみに、Googleカレンダーでは週始まりの曜日設定によりISOかEPIに自動的に切り替わる。「土曜日」始まりに設定した場合もISO/EPIの定義と同様の処理ではあるが週初日の曜日がずれる点に注意。<br />
 　</p>
 <p><sup>1</sup> 疫学週（Epidemiological Week）とはCDC週とも呼ばれ、年ごとのデータの比較を可能にするために標準化された週を数える方法。残念ながら世界の地域ごとに週初日の定義が異なっていたりする。</p>
 <p>　</p>
@@ -2833,8 +2835,8 @@ div.tocify {
                            as.Date(&quot;2010-01-14&quot;), by = &quot;day&quot;)) %&gt;% 
   dplyr::mutate(wday = lubridate::wday(date, label = TRUE),
                 week = lubridate::week(date),
-                iso = lubridate::isoweek(date),
-                epi = lubridate::epiweek(date)) %&gt;%
+                isoweek = lubridate::isoweek(date),
+                epiweek = lubridate::epiweek(date)) %&gt;%
   knitr::kable()</code></pre>
 <table>
 <thead>
@@ -2842,8 +2844,8 @@ div.tocify {
 <th align="left">date</th>
 <th align="left">wday</th>
 <th align="right">week</th>
-<th align="right">iso</th>
-<th align="right">epi</th>
+<th align="right">isoweek</th>
+<th align="right">epiweek</th>
 </tr>
 </thead>
 <tbody>
@@ -3004,8 +3006,8 @@ div.tocify {
                            as.Date(&quot;2020-01-14&quot;), by = &quot;day&quot;)) %&gt;% 
   dplyr::mutate(wday = lubridate::wday(date, label = TRUE),
                 week = lubridate::week(date),
-                iso = lubridate::isoweek(date),
-                epi = lubridate::epiweek(date)) %&gt;% 
+                isoweek = lubridate::isoweek(date),
+                epiweek = lubridate::epiweek(date)) %&gt;% 
   knitr::kable()</code></pre>
 <table>
 <thead>
@@ -3013,8 +3015,8 @@ div.tocify {
 <th align="left">date</th>
 <th align="left">wday</th>
 <th align="right">week</th>
-<th align="right">iso</th>
-<th align="right">epi</th>
+<th align="right">isoweek</th>
+<th align="right">epiweek</th>
 </tr>
 </thead>
 <tbody>
@@ -3163,6 +3165,434 @@ div.tocify {
 <td align="left">火</td>
 <td align="right">2</td>
 <td align="right">3</td>
+<td align="right">3</td>
+</tr>
+</tbody>
+</table>
+<p>　</p>
+</div>
+</div>
+<div id="月の第何週かを求める" class="section level1">
+<h1>月の第何週かを求める</h1>
+<p>週番号（暦週）は年単位の番号ですが、月の第何週に当たるかを計算したい時はどうすればよいでしょうか？<br />
+　<br />
+このような場合は、対象日と対象日が含まれる月の初日（1日）の週番号（暦週）を用いて求めます。<br />
+　<br />
+月の初日（1日）を求めるには<code>lubridate::floor_date</code>関数を用います。</p>
+<pre class="r"><code>date &lt;- lubridate::today()
+lubridate::floor_date(date, unit = &quot;month&quot;)</code></pre>
+<pre><code>## [1] &quot;2020-10-01&quot;</code></pre>
+<p>　<br />
+月の初日（1日）が求められましたので、その週番号（暦週）を求めるのは前述のように<code>lubridate</code>の<code>week</code>系関数を用います。</p>
+<pre class="r"><code>lubridate::floor_date(date, unit = &quot;month&quot;) %&gt;% 
+  lubridate::epiweek()</code></pre>
+<pre><code>## [1] 40</code></pre>
+<p>　<br />
+これで、対象日の週番号（暦週）から初日（1日）の週番号（暦週）を引いて1を加算すれば、その月の週番号が求められます。</p>
+<pre class="r"><code>lubridate::epiweek(date) - lubridate::epiweek(lubridate::floor_date(date, unit = &quot;month&quot;)) + 1</code></pre>
+<pre><code>## [1] 4</code></pre>
+<p>　<br />
+ただし、年末年始は週番号（暦週）がテレコになる場合がありますので、単純に1を加算するのではなくオフセットを計算して加算する必要があります。</p>
+<p>　<br />
+ISO/EPIの場合は以下の条件でオフセットを求めることができます。</p>
+<table>
+<thead>
+<tr class="header">
+<th>条件</th>
+<th align="center">オフセット</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>月初日の週番号（暦週）が第52週</td>
+<td align="center"><span class="math inline">\(53\)</span></td>
+<td>各年1月のみ</td>
+</tr>
+<tr class="even">
+<td>月初日の週番号（暦週）が第53週</td>
+<td align="center"><span class="math inline">\(54\)</span></td>
+<td>同上</td>
+</tr>
+<tr class="odd">
+<td>月初日の週番号（暦週）<span class="math inline">\(\gt\)</span> 求めたい日の週番号（暦週）</td>
+<td align="center"><span class="math inline">\(53\)</span></td>
+<td>12月の最終週が第1週の場合</td>
+</tr>
+<tr class="even">
+<td>上記以外</td>
+<td align="center"><span class="math inline">\(1\)</span></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>　</p>
+<div id="年2010年" class="section level2">
+<h2>2009年～2010年</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="left">date</th>
+<th align="left">wday</th>
+<th align="right">epi</th>
+<th align="left">first_day_of_month</th>
+<th align="right">fepi</th>
+<th align="right">weeks_of_month</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">2009-12-25</td>
+<td align="left">金</td>
+<td align="right">51</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="left">2009-12-26</td>
+<td align="left">土</td>
+<td align="right">51</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">4</td>
+</tr>
+<tr class="odd">
+<td align="left">2009-12-27</td>
+<td align="left">日</td>
+<td align="right">52</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">2009-12-28</td>
+<td align="left">月</td>
+<td align="right">52</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">5</td>
+</tr>
+<tr class="odd">
+<td align="left">2009-12-29</td>
+<td align="left">火</td>
+<td align="right">52</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">2009-12-30</td>
+<td align="left">水</td>
+<td align="right">52</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">5</td>
+</tr>
+<tr class="odd">
+<td align="left">2009-12-31</td>
+<td align="left">木</td>
+<td align="right">52</td>
+<td align="left">2009-12-01</td>
+<td align="right">48</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-01</td>
+<td align="left">金</td>
+<td align="right">52</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-02</td>
+<td align="left">土</td>
+<td align="right">52</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-03</td>
+<td align="left">日</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-04</td>
+<td align="left">月</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-05</td>
+<td align="left">火</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-06</td>
+<td align="left">水</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-07</td>
+<td align="left">木</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-08</td>
+<td align="left">金</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-09</td>
+<td align="left">土</td>
+<td align="right">1</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-10</td>
+<td align="left">日</td>
+<td align="right">2</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">3</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-11</td>
+<td align="left">月</td>
+<td align="right">2</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">3</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-12</td>
+<td align="left">火</td>
+<td align="right">2</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">3</td>
+</tr>
+<tr class="even">
+<td align="left">2010-01-13</td>
+<td align="left">水</td>
+<td align="right">2</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">3</td>
+</tr>
+<tr class="odd">
+<td align="left">2010-01-14</td>
+<td align="left">木</td>
+<td align="right">2</td>
+<td align="left">2010-01-01</td>
+<td align="right">52</td>
+<td align="right">3</td>
+</tr>
+</tbody>
+</table>
+<p>　</p>
+</div>
+<div id="年2020年" class="section level2">
+<h2>2019年～2020年</h2>
+<table>
+<thead>
+<tr class="header">
+<th align="left">date</th>
+<th align="left">wday</th>
+<th align="right">epi</th>
+<th align="left">first_day_of_month</th>
+<th align="right">fepi</th>
+<th align="right">weeks_of_month</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">2019-12-25</td>
+<td align="left">水</td>
+<td align="right">52</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="left">2019-12-26</td>
+<td align="left">木</td>
+<td align="right">52</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">4</td>
+</tr>
+<tr class="odd">
+<td align="left">2019-12-27</td>
+<td align="left">金</td>
+<td align="right">52</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="left">2019-12-28</td>
+<td align="left">土</td>
+<td align="right">52</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">4</td>
+</tr>
+<tr class="odd">
+<td align="left">2019-12-29</td>
+<td align="left">日</td>
+<td align="right">1</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">2019-12-30</td>
+<td align="left">月</td>
+<td align="right">1</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">5</td>
+</tr>
+<tr class="odd">
+<td align="left">2019-12-31</td>
+<td align="left">火</td>
+<td align="right">1</td>
+<td align="left">2019-12-01</td>
+<td align="right">49</td>
+<td align="right">5</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-01</td>
+<td align="left">水</td>
+<td align="right">1</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-02</td>
+<td align="left">木</td>
+<td align="right">1</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-03</td>
+<td align="left">金</td>
+<td align="right">1</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-04</td>
+<td align="left">土</td>
+<td align="right">1</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-05</td>
+<td align="left">日</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-06</td>
+<td align="left">月</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-07</td>
+<td align="left">火</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-08</td>
+<td align="left">水</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-09</td>
+<td align="left">木</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-10</td>
+<td align="left">金</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-11</td>
+<td align="left">土</td>
+<td align="right">2</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-12</td>
+<td align="left">日</td>
+<td align="right">3</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">3</td>
+</tr>
+<tr class="even">
+<td align="left">2020-01-13</td>
+<td align="left">月</td>
+<td align="right">3</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
+<td align="right">3</td>
+</tr>
+<tr class="odd">
+<td align="left">2020-01-14</td>
+<td align="left">火</td>
+<td align="right">3</td>
+<td align="left">2020-01-01</td>
+<td align="right">1</td>
 <td align="right">3</td>
 </tr>
 </tbody>
