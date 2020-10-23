@@ -100,10 +100,17 @@ x %>%
 ## 全体傾向
 
 ```{r, include=FALSE}
+# 欠損日を埋めるためにジョインするためのカレンダー
 date <- x %>% 
   with(seq(range(dateAnnounced)[1], range(dateAnnounced)[2], by = "day")) %>% 
   as.data.frame() %>% 
   dplyr::rename(date = 1)
+
+# 同様の処理は以下の一行でもできる（rangeを使うか、min/maxを使うかは好み）
+# x %>%
+#   tidyr::complete(dateAnnounced = seq.Date(min(dateAnnounced),
+#                                            max(dateAnnounced), by = "day"))
+# x %>% with(range(dateAnnounced)) %>% diff()
 ```
 
 ```{r}
@@ -125,12 +132,12 @@ x %>%
     ggplot2::scale_y_continuous(
       name = "陽性確定数（日別）・7日間移動平均（濃赤折線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性確定数（折線）")
+                                    name = "累積陽性確定者数（折線）")
     ) +
     ggplot2::labs(title = paste0("Covid19, Japan（@", Sys.time(), "）"),
                   subtitle = "", x = "日付")
 
-# plotly::ggplotly()
+plotly::ggplotly()
 ```
 
 
@@ -276,33 +283,55 @@ x %>%
 
 ## 時系列（TS）分析
 日毎の陽性判定者数を時系列データ形式に変換します。判定者数がゼロの日は報告されていないので、最初の陽性判定者が出た日から日日次のカレンダーデータを作成して結合してます。なお、時系列データ形式の周期については日次データなので7日間を周期として設定しておきます（考え方によっては約1ヶ月ごとで4週間=28日を周期にするのもありかと思います）。
+
 ```{r}
-ts_x <- x %>% 
+tmp <- x %>%
   dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::group_by(dateAnnounced) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
-  dplyr::select(-date) %>%
+  dplyr::summarise(n = n()) %>% print() %>% 
+  dplyr::rename(date = dateAnnounced) %>% 
+  tidyr::complete(date = seq.Date(min(date), max(date), by = "day")) %>% print() %>% 
+  tidyr::replace_na(list(n = 0L)) %>% print() %>% 
+  dplyr::select(-date)
+
+ts_x <- tmp %>%
   ts(frequency = 1)
-  
-tsw_x <- x %>% 
-  dplyr::filter(!is.na(fct_pref)) %>% 
-  dplyr::group_by(dateAnnounced) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
-  dplyr::select(-date) %>%
+
+tsw_x <- tmp %>%
   ts(frequency = 7)
 
-tsm_x <- x %>% 
-  dplyr::filter(!is.na(fct_pref)) %>% 
-  dplyr::group_by(dateAnnounced) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
-  dplyr::select(-date) %>%
+tsm_x <- tmp %>%
   ts(frequency = 28)
+
+```
+
+```{r, eval=FALSE}
+# ts_x <- x %>% 
+#   dplyr::filter(!is.na(fct_pref)) %>% 
+#   dplyr::group_by(dateAnnounced) %>% 
+#   dplyr::summarise(n = n()) %>% 
+#   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+#   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+#   dplyr::select(-date) %>%
+#   ts(frequency = 1)
+#   
+# tsw_x <- x %>% 
+#   dplyr::filter(!is.na(fct_pref)) %>% 
+#   dplyr::group_by(dateAnnounced) %>% 
+#   dplyr::summarise(n = n()) %>% 
+#   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+#   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+#   dplyr::select(-date) %>%
+#   ts(frequency = 7)
+# 
+# tsm_x <- x %>% 
+#   dplyr::filter(!is.na(fct_pref)) %>% 
+#   dplyr::group_by(dateAnnounced) %>% 
+#   dplyr::summarise(n = n()) %>% 
+#   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>% 
+#   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>% 
+#   dplyr::select(-date) %>%
+#   ts(frequency = 28)
 ```
 
 時系列データに変換したものをプロットすると可視化の項でプロットした棒グラフと同じ形のグラフになることが分かります。
