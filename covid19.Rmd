@@ -370,6 +370,45 @@ tsm_x %>%
   plot()
 ```
 
+トレンドだけを抜き出してみる。
+```{r}
+tsw_x %>% 
+  stats::decompose() %>% 
+  .$x %>% 
+  plot(ylim = c(0, 1500))
+
+par(new = TRUE)
+
+tsw_x %>% 
+  stats::decompose() %>% 
+  .$trend %>% 
+  plot(ylim = c(0, 1500), col = "dark green", lwd = 3)
+
+par(new = FALSE)
+```
+
+```{r}
+tsm_x %>% 
+  stats::decompose() %>% 
+  .$x %>% 
+  plot(ylim = c(0, 1500))
+
+par(new = TRUE)
+
+tsm_x %>% 
+  stats::decompose() %>% 
+  .$trend %>% 
+  plot(ylim = c(0, 1500), col = "blue", lwd = 3)
+
+par(new = FALSE)
+
+# tsm_x %>% 
+#   stats::decompose() %>% 
+#   .$trend %>% 
+#   plot()
+```
+
+
 スペクトル密度の推定。何を意味するのかよく分からない。
 ```{r}
 ts_x %>% 
