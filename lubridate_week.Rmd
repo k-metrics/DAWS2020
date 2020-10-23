@@ -1,0 +1,60 @@
+---
+title: "週番号（暦週）に関する注意事項"
+output:
+  html_document:
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, message=FALSE, echo=FALSE}
+require(tidyverse)
+require(lubridate)
+```
+
+
+# 複数の決め方がある
+週番号（暦週）には複数の決め方があるので、使い道に合わせて選択すること。特にカレンダーを意識して週番号を求めたい場合は要注意。カレンダーヒートマップを作成する際にハマりました。  
+
+
+関数    | 定義      | 定義概要                              | 週初日の曜日
+--------|-----------|---------------------------------------|----------------
+week    | lubridate | **1月1日を第1週**とし7日単位で1を加算     | 不定         
+isoweek | ISO 8601  | **最初の木曜日**を含む週が、その年の第1週 | 月曜日        
+epiweek | 疫学週^1^ | 同上                                  | 日曜日（US CDC）
+
+  
+ちなみに、Googleカレンダーでは週始まりの曜日設定によりISOかEPIに切り替わる。「土曜日」始まりに設定した場合もISO/EPIの定義と同様の処理ではあるが週初日の曜日がずれる点に注意。  
+　  
+
+^1^ 疫学週（Epidemiological Week）とはCDC週とも呼ばれ、年ごとのデータの比較を可能にするために標準化された週を数える方法。残念ながら世界の地域ごとに週初日の定義が異なっていたりする。
+
+　  
+
+## 2010年の例
+```{r}
+data.frame(date = seq.Date(as.Date("2009-12-25"),
+                           as.Date("2010-01-14"), by = "day")) %>% 
+  dplyr::mutate(wday = lubridate::wday(date, label = TRUE),
+                week = lubridate::week(date),
+                iso = lubridate::isoweek(date),
+                epi = lubridate::epiweek(date)) %>%
+  knitr::kable()
+```
+
+　  
+
+## 2020年の例
+```{r}
+data.frame(date = seq.Date(as.Date("2019-12-25"),
+                           as.Date("2020-01-14"), by = "day")) %>% 
+  dplyr::mutate(wday = lubridate::wday(date, label = TRUE),
+                week = lubridate::week(date),
+                iso = lubridate::isoweek(date),
+                epi = lubridate::epiweek(date)) %>% 
+  knitr::kable()
+```
+
