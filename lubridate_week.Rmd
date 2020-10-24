@@ -20,9 +20,17 @@ require(lubridate)
 
 ![例](https://i.stack.imgur.com/JKxGL.png)
 　  
+任意の日付が「第何週か？」を求める場合、大きく二つに分けられる。
+
+* 当年の第何週目か？
+* 当月の第何週目か？
+
+`lubridate`パッケージを用いて第何週かを求める場合、ちょっとした注意点があるのでその紹介。  
+
+　  
 
 # 複数の求め方がある
-週番号（暦週）には複数の求め方があるので、使い道に合わせて選択する。特にカレンダーを意識して週番号を求めたい場合は要注意。  
+年の週番号（暦週）を求める場合、複数の求め方があるので使い道に合わせて選択する。特にカレンダーを意識して週番号を求めたい場合は要注意。  
 
 
 関数    | 定義      | 定義概要                              | 週初日の曜日
@@ -39,7 +47,7 @@ epiweek | 疫学週^1^ | 同上                                  | 日曜日（U
 
 　  
 
-## 2010年の例
+## 2009年～2010年の例
 ```{r}
 data.frame(date = seq.Date(as.Date("2009-12-25"),
                            as.Date("2010-01-14"), by = "day")) %>% 
@@ -52,7 +60,7 @@ data.frame(date = seq.Date(as.Date("2009-12-25"),
 
 　  
 
-## 2020年の例
+## 2019年～2020年の例
 ```{r}
 data.frame(date = seq.Date(as.Date("2019-12-25"),
                            as.Date("2020-01-14"), by = "day")) %>% 
@@ -73,6 +81,7 @@ data.frame(date = seq.Date(as.Date("2019-12-25"),
 月の初日（1日）を求めるには`lubridate::floor_date`関数を用います。  
 ```{r}
 date <- lubridate::today()
+date
 lubridate::floor_date(date, unit = "month")
 ```
 　  
