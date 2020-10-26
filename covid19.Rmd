@@ -120,7 +120,10 @@ x %>%
   dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::group_by(dateAnnounced) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced),
+                                           to = max(dateAnnounced),
+                                           by = "day"),
+                  fill = list(n = 0L)) %>% 
   dplyr::mutate(cum = cumsum(n),
                 ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>%
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced)) + 
@@ -148,7 +151,10 @@ x %>%
   dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced),
+                                           to = max(dateAnnounced),
+                                           by = "day"),
+                  fill = list(n = 0L)) %>% 
   dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
@@ -161,10 +167,14 @@ x %>%
   dplyr::filter(!is.na(fct_pref)) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced),
+                                           to = max(dateAnnounced),
+                                           by = "day"),
+                  fill = list(n = 0L)) %>% 
   dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, colour = `八地方区分`)) + 
     ggplot2::geom_line(ggplot2::aes(y = n)) +
+    ggplot2::geom_point(ggplot2::aes(y = n), size = 1) + 
     ggplot2::scale_colour_brewer(palette = "Set1")
 ```
 
@@ -181,7 +191,10 @@ x %>%
                                                           "四国地方"))) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced),
+                                           to = max(dateAnnounced),
+                                           by = "day"),
+                  fill = list(n = 0L)) %>% 
   dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, fill = `八地方区分`)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", alpha = 1.0) +
@@ -199,7 +212,10 @@ x %>%
                                                           "四国地方"))) %>% 
   dplyr::group_by(dateAnnounced, `八地方区分`) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(n = tidyr::replace_na(n, 0)) %>% 
+  tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced),
+                                           to = max(dateAnnounced),
+                                           by = "day"),
+                  fill = list(n = 0L)) %>% 
   dplyr::mutate(cum = cumsum(n)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, colour = `八地方区分`)) + 
     ggplot2::geom_line(ggplot2::aes(y = n)) +
@@ -290,8 +306,9 @@ tmp <- x %>%
   dplyr::group_by(dateAnnounced) %>% 
   dplyr::summarise(n = n()) %>% print() %>% 
   dplyr::rename(date = dateAnnounced) %>% 
-  tidyr::complete(date = seq.Date(min(date), max(date), by = "day")) %>% print() %>% 
-  tidyr::replace_na(list(n = 0L)) %>% print() %>% 
+  tidyr::complete(date = seq.Date(min(date), max(date), by = "day"),
+                  fill = list(n = 0L)) %>% print() %>% 
+  # tidyr::replace_na(list(n = 0L)) %>% print() %>% 
   dplyr::select(-date)
 
 ts_x <- tmp %>%
@@ -302,7 +319,6 @@ tsw_x <- tmp %>%
 
 tsm_x <- tmp %>%
   ts(frequency = 28)
-
 ```
 
 ```{r, eval=FALSE}
