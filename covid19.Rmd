@@ -16,9 +16,30 @@ require(tidyverse)
 require(jsonlite)
 ```
 
+日本の新型コロナウィルスに関する情報が抱える大きな問題は、ソースごとに値が微妙にことなっていることです。原因は明白で、総元締めであるはずの厚生労働省が各自治からの患者データを集計せずに各自治体のプレスリリースやウェブサイトの数値を積上げたものを発表していることにあります。  
+本来であれば医療機関->市町村->都道府県->厚生労働省の順で患者のデータを全て吸い上げて集計すべきなのです。
+
+
+
 # Import
 
-## Covid19 Data
+## 厚生労働省
+厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページから取得した「陽性確定者数」のデータ
+```{r}
+df_mhlw <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`),
+                n = as.integer(`PCR 検査陽性者数(単日)`),
+                cum = cumsum(n)) %>% 
+  dplyr::select(date, n, cum)
+
+df_mhlw
+```
+
+　  
+
+## Covid19Japan
+[Covid19 Japan](covid19japan.com)が独自に収集している陽性確定者単位のデータ。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されているが、データはJSON形式である点に注意。発表後に修正されたレコード（インスタンス）は削除されれずにステータスなどが変更されているだけなので、「レコード数 $\neq$ 累計陽性確定者」である点に注意。
 ```{r, echo=FALSE}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
 path <- paste0(path, "docs/patient_data/")
@@ -27,7 +48,6 @@ data_at <- readr::read_lines(paste0(path, "latest.json")) %>%
   stringr::str_sub(start = 1L, end = -6L)
 ```
 
-[Covid19 Japan](https://covid19japan.com/)の公開データ（`r data_at`付）を使います。
 ```{r, echo=FALSE}
 df <- path %>% 
   paste0("latest.json") %>% 
@@ -38,10 +58,32 @@ df <- path %>%
 df
 ```
 
+```{r}
+df %>% 
+  dplyr::group_by(patientId) %>% 
+  dplyr::summarise(n = n())
+
+df %>% 
+  dplyr::filter(patientId == "-1")
+
+df %>% 
+  dplyr::filter(patientStatus == "Deceased")
+```
+
+
+## JAG Japan
+[ジャッグジャパン株式会社](https://gis.jag-japan.com/covid19jp/)が独自に収集している陽性確定者単位のデータ。データはCSV形式にて公開されているが、GIS処理用のデータが含まれている点に注意。「レコード数 $=$ 累計陽性確定者数」になっている。
+```{r}
+df_jag <- "https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
+  readr::read_csv()
+
+df_jag
+```
+
 　  
 
 ## Area Data
-都道府県と地方区分に関するデータは自作データで都道府県コード（`pcode`）順で各区分を因子化してあります。
+都道府県と地方区分に関するデータをGistで公開していますので、使いたい方はご自由に。
 ```{r, echo=FALSE, message=FALSE}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
@@ -60,6 +102,43 @@ prefs
 　  
 
 # Data Wrangling
+
+## ソースによる違い
+```{r, echo=FALSE}
+n_mhlw <- df_mhlw %>% 
+  with(max(cum))
+date_mhlw <- df_mhlw %>% 
+  with(max(date))
+
+n_c19j <- df %>% 
+  dplyr::filter(patientId != "-1") %>% 
+  nrow()
+dead_c19j <- df %>% 
+  dplyr::filter(patientStatus == "Deceased") %>% 
+  nrow()
+date_c19j <- df %>% 
+  with(max(dateAnnounced))
+
+n_jag <- df_jag %>% 
+  nrow()
+date_jag <- df_jag %>% 
+  dplyr::mutate(`確定日` = lubridate::mdy(`確定日`)) %>% 
+  with(max(`確定日`))
+```
+
+
+収集組織      | 累計感染者数 | 累計死者数 | 日付
+--------------|--------------|------------|-----
+厚生労働省    | `r n_mhlw`   |   | `r date_mhlw`
+Covid19 Japan | `r n_c19j`   | `r dead_c19j` | `r date_c19j`
+JAG Japan     | `r n_jag`    |   | `r date_jag`
+東洋経済      | | | | 
+NHK（参考）   | 98262        | 1733 | 2020-10-27
+
+https://github.com/kaz-ogiwara/covid19/tree/master/data
+https://www3.nhk.or.jp/news/special/coronavirus/data-all/
+
+
 
 ## Summarize
 オリジナルのデータがどのようになっているか`skimr`パッケージを用いてサマライズしてみます。元がJSON形式なので、読み込んだ直後は殆どの変量（フィーチャー）が文字型になっているのと欠損値が多いことが分かります。
@@ -97,6 +176,16 @@ x %>%
 
 # Visualizing
 
+## 厚生労働省
+```{r, eval=FALSE}
+df_mhlw %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::
+                  ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+```
+
+
+
 ## 全体傾向
 
 ```{r, include=FALSE}
@@ -128,7 +217,7 @@ x %>%
                 ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>%
   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
-                      fill = "dark green", alpha = 0.5) + 
+                      fill = "dark green", alpha = 0.5, width = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
                        colour = "dark green") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark red") + 
