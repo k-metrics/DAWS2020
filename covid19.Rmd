@@ -24,7 +24,7 @@ require(jsonlite)
 # Import
 
 ## 厚生労働省
-厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページから取得した「陽性確定者数」のデータ
+厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページから取得した「陽性確定者数」のデータ。
 ```{r}
 df_mhlw <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
   readr::read_csv() %>% 
@@ -35,10 +35,22 @@ df_mhlw <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>%
 
 df_mhlw
 ```
+　  
+死亡者のデータは元データが累計データになっている。
+```{r}
+dead_mhlw <- "https://www.mhlw.go.jp/content/death_total.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`),
+                cum_dead = as.integer(`死亡者数`),
+                dead = cum_dead - dplyr::lag(cum_dead, default = 0)) %>% 
+  dplyr::select(date, dead, cum_dead)
+
+dead_mhlw
+```
 
 　  
 
-## Covid19Japan
+## Covid19 Japan
 [Covid19 Japan](covid19japan.com)が独自に収集している陽性確定者単位のデータ。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されているが、データはJSON形式である点に注意。発表後に修正されたレコード（インスタンス）は削除されれずにステータスなどが変更されているだけなので、「レコード数 $\neq$ 累計陽性確定者」である点に注意。
 ```{r, echo=FALSE}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
@@ -56,9 +68,10 @@ df <- path %>%
   jsonlite::fromJSON()
 
 df
+# df %>% readr::write_excel_csv("./Covid19/covid19japan.csv")
 ```
 
-```{r}
+```{r, eval=FALSE}
 df %>% 
   dplyr::group_by(patientId) %>% 
   dplyr::summarise(n = n())
@@ -105,22 +118,22 @@ prefs
 
 ## ソースによる違い
 ```{r, echo=FALSE}
-n_mhlw <- df_mhlw %>% 
-  with(max(cum))
+n_mhlw <- df_mhlw %>% with(max(cum))
+d_mhlw <- dead_mhlw %>% with(max(cum_dead))
+
 date_mhlw <- df_mhlw %>% 
   with(max(date))
 
 n_c19j <- df %>% 
-  dplyr::filter(patientId != "-1") %>% 
-  nrow()
-dead_c19j <- df %>% 
-  dplyr::filter(patientStatus == "Deceased") %>% 
-  nrow()
+  dplyr::filter(patientId != "-1") %>% nrow()
+d_c19j <- df %>% 
+  dplyr::filter(patientStatus == "Deceased") %>% nrow()
+
 date_c19j <- df %>% 
   with(max(dateAnnounced))
 
-n_jag <- df_jag %>% 
-  nrow()
+n_jag <- df_jag %>% nrow()
+
 date_jag <- df_jag %>% 
   dplyr::mutate(`確定日` = lubridate::mdy(`確定日`)) %>% 
   with(max(`確定日`))
@@ -129,11 +142,10 @@ date_jag <- df_jag %>%
 
 収集組織      | 累計感染者数 | 累計死者数 | 日付
 --------------|--------------|------------|-----
-厚生労働省    | `r n_mhlw`   |   | `r date_mhlw`
-Covid19 Japan | `r n_c19j`   | `r dead_c19j` | `r date_c19j`
-JAG Japan     | `r n_jag`    |   | `r date_jag`
-東洋経済      | | | | 
-NHK（参考）   | 98262        | 1733 | 2020-10-27
+厚生労働省    | `r n_mhlw`   | `r d_mhlw` | `r date_mhlw`
+Covid19 Japan | `r n_c19j`   | `r d_c19j` | `r date_c19j`
+JAG Japan     | `r n_jag`    | N/A        | `r date_jag`
+NHK（参考）   | 98993        | 1738       | 2020-10-28
 
 https://github.com/kaz-ogiwara/covid19/tree/master/data
 https://www3.nhk.or.jp/news/special/coronavirus/data-all/
@@ -147,25 +159,37 @@ df %>%
   skimr::skim()
 ```
 
+```{r}
+df %>% 
+  dplyr::group_by(detectedPrefecture) %>% 
+  dplyr::summarise(n = n())
+```
+
 　  
 
 ## Transform
 各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合します。
 ```{r}
 x <- df %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% print() %>% 
+  dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref")) %>% 
+  dplyr::filter(!is.na(pcode)) %>% 
   dplyr::mutate(dateAnnounced = lubridate::as_date(dateAnnounced),
                 ageBracket = forcats::as_factor(ageBracket),
                 gender = forcats::as_factor(gender),
                 patientStatus = forcats::as_factor(patientStatus),
                 residence = forcats::as_factor(residence),
                 cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE)) %>% 
-  dplyr::select(dateAnnounced, ageBracket, gender, detectedPrefecture,
-                patientStatus, knownCluster, cluster) %>% 
-  dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref"))
+  dplyr::select(patientId, dateAnnounced, ageBracket, gender, detectedPrefecture,
+                patientStatus, knownCluster, cluster, confirmedPatient)
 
 x
 x %>% 
   skimr::skim()
+
+x %>% 
+  dplyr::group_by(detectedPrefecture) %>% 
+  dplyr::summarise(n = n())
 ```
 
 　  
