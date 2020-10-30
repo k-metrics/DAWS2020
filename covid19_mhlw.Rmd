@@ -1,7 +1,8 @@
 ---
-title: "Covid19, Japan"
+title: "Covid19 Data in Japan"
 output:
   html_document:
+    code_folding : hide
     df_print: paged
     theme: cerulean
     toc: true
@@ -16,18 +17,21 @@ require(tidyverse)
 require(jsonlite)
 ```
 
-日本の新型コロナウィルスに関する情報が抱える大きな問題は、ソースごとに値が微妙にことなっていることです。原因は明白で、総元締めであるはずの厚生労働省が各自治からの患者データを集計せずに各自治体のプレスリリースやウェブサイトの数値を積上げたものを発表していることにあります。  
-本来であれば医療機関->市町村->都道府県->厚生労働省の順で患者のデータを全て吸い上げて集計すべきなのです。
+日本の新型コロナウィルスに関する情報が抱える大きな問題の一つに、ソースごとの値が微妙にことなっていることが挙げられる。原因は明白で、総元締めであるはずの厚生労働省が各自治からの患者データを集計せずに各自治体のプレスリリースやウェブサイトの数値を積上げたものを発表しているからである。  
+本来であれば医療機関->市町村->都道府県->厚生労働省が一気通貫して同じデータを扱えるようにすべきであり、このあたりの改革は、河野行政改革担当大臣に期待するところである。  
 
+　  
+さて、理想論はさておき、実際のデータはどのようになっていて、そこから何が読み取れるかを見てみる。  
 
+　  
 
 # 厚生労働省データ
-厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページで公開しているデータは、あくまでも、**「国内事例」**のみであり、チャーター便、空港検疫、外国船籍の客船を除くデータになっている。なお、データによっては途中からデータソースが変更されているものがある。
+厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページで公開しているデータは、あくまでも、**「国内事例」**のみであり、チャーター便、空港検疫、外国船籍の客船を除くデータになっている。なお、データによっては途中からデータソースが変更されているものがあるため可視化すると不自然な変動が見られる場合がある。  
 
 　  
 
 ## Import
-項目ごとのCSVファイルになっているため、個々に読み込む。
+項目ごとに個別のCSVファイルになっている。
 
 　  
 
@@ -58,7 +62,16 @@ require(jsonlite)
 
 　  
 
-## Wrangring (tidy and transform)
+### PCR検査実施人数
+件数ベースと人数ベースのデータが混在しているため数値が過大な傾向になっている。陽性確定者数と同じく単日。ただし、異なる数を合算しているので目安程度にしかならないと思われる。
+```{r}
+"https://www.mhlw.go.jp/content/pcr_tested_daily.csv" %>% 
+  readr::read_csv()
+```
+
+　  
+
+## Wrangle (tidy and transform)
 各データを扱いやすいように変換する。
 
 ### 陽性確定者数
@@ -105,17 +118,42 @@ patient_mhlw
 
 　  
 
+### PCR検査実施人数
+
+```{r}
+pcr_mhlw <- "https://www.mhlw.go.jp/content/pcr_tested_daily.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`),
+                pcr = as.integer(`PCR 検査実施件数(単日)`)) %>% 
+  dplyr::select(date, pcr) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
+                  fill = list(pcr = 0L)) %>% 
+  dplyr::mutate(cum_pcr = cumsum(pcr))
+pcr_mhlw
+```
+
+
+　  
+
 ### 結合
 上記のデータフレームをひとつにまとめる。
 ```{r}
-x_mhlw <- df_mhlw %>% 
+x_mhlw <- 
+
+df_mhlw %>% 
   dplyr::left_join(dead_mhlw, by = c("date")) %>% 
   dplyr::left_join(patient_mhlw, by = c("date")) %>% 
-  tidyr::replace_na(list(dead = 0L, cum_dead = 0L, patient = 0L)) %>% 
+  dplyr::left_join(pcr_mhlw, by = c("date")) %>% 
+  tidyr::replace_na(replace = list(dead = 0L, cum_dead = 0L,
+                                   patient = 0L,
+                                   pcr = 0L, cum_pcr = 0L)) %>% 
   dplyr::mutate(diff = n - dplyr::lag(n, default = 0L),
                 diff_dead = dead - dplyr::lag(dead, default = 0L),
-                diff_patient = patient - dplyr::lag(patient, default = 0L)) %>% 
-  dplyr::select(date, n, diff, cum, patient, diff_patient, dead, diff_dead, cum_dead)
+                diff_patient = patient - dplyr::lag(patient, default = 0L),
+                diff_pcr = pcr - dplyr::lag(pcr, default = 0L)) %>% 
+  dplyr::select(date, n, diff, cum,
+                patient, diff_patient,
+                dead, diff_dead, cum_dead, pcr, diff_pcr, cum_pcr)
 x_mhlw
 ```
 
@@ -123,15 +161,115 @@ x_mhlw
 
 ## Visualize
 
+### 陽性確定者数の推移
+最近ではPCR検査の件数が大きく増えており、その感度が一説には約35%と言われていることからみても、陽性確定者数だけで議論することは意味がないと言われているが、まずは可視化する。
 ```{r}
+scale_axis <- 50
+
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = dead), stat = "identity", width = 1.0) +
-    ggplot2::geom_line(ggplot2::aes(y = cum_dead / 20), colour = "dark green") +
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      width = 1.0, alpha = 0.75) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / scale_axis), colour = "dark green") +
+    ggplot2::scale_y_continuous(
+      name = "陽性確定者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * scale_axis,
+                                    name = "陽性確定者数累計（折線）")
+    )
+```
+
+2020年10月29日の報道では陽性確定者数の累計が10万人を超えた（チャーター便、空港検疫など含む）と報道されていたが、`r lubridate::now()` 時点で厚生労働省が公開しているデータに基づくと `r max(x_mhlw$date)` の $`r max(x_mhlw$cum)`$ 人である。このラグは集計方法に起因すると推定できる。
+
+　  
+
+### 入院治療などを要する者の数
+要入院治療者数と陽性確定者数（累積）との比較。
+```{r}
+scale_axis <- 10000
+
+x_mhlw %>% 
+  dplyr::mutate(pat_ratio = patient / cum) %>% 
+                # cum_patient = cumsum(patient)) %>% 
+  ggplot2::ggplot(ggplot2::aes(date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum), colour = "dark green") + 
+    ggplot2::geom_line(ggplot2::aes(y = patient), colour = "blue") +
+    ggplot2::geom_line(ggplot2::aes(y = pat_ratio * scale_axis),
+                       colour = "dark red") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性確定者数（累計）・要入院治療者（黒）",
+      sec.axis = ggplot2::sec_axis(~ . / scale_axis,
+                                    name = "要入院治療者数率（濃赤折線）")
+    )
+```
+
+　  
+陽性確定者数が急増しているにも関わらず入院治療を必要とする陽性確定者は増えていないことが分かる。
+
+
+### 死亡者数の推移
+陽性確定者数の推移に変わり着目されているのが死亡者数の推移である。まずは、単純な死亡者数の推移。
+```{r}
+scale_axis <- 20
+
+x_mhlw %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = dead), stat = "identity",
+                      width = 1.0, alpha = 0.75) +
+    ggplot2::geom_line(ggplot2::aes(y = cum_dead / scale_axis),
+                       colour = "dark green") +
     ggplot2::scale_y_continuous(
       name = "死者数（単日）",
-      sec.axis = ggplot2::sec_axis(~ . * 20,
+      sec.axis = ggplot2::sec_axis(~ . * scale_axis,
                                     name = "死者数累計（折線）")
     )
 ```
 
+
+#### 死亡者比率
+ここでは、陽性確定者数に対する死亡者数の比を死亡者比率としています。単日での比較は意味がないので、累積数値を用いて
+```{r}
+scale_axis <- 0.0001
+
+x_mhlw %>% 
+  dplyr::mutate(nd_ratio = (cum_dead / cum) * 100,
+                nd_ratio = round(nd_ratio, digits = 1)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = cum), stat = "identity",
+                      width = 1.0, alpha = 0.25) +
+    ggplot2::geom_bar(ggplot2::aes(y = cum_dead), stat = "identity",
+                      width = 1.0, alpha = 0.10, colour = "light cyan") +
+    ggplot2::geom_line(ggplot2::aes(y = nd_ratio / scale_axis),
+                       colour = "dark green") +
+    ggplot2::scale_y_continuous(
+      name = "陽性確定者数（累積）",
+      sec.axis = ggplot2::sec_axis(~ . * scale_axis,
+                                    name = "死亡者比率（死亡者累積／陽性確定者累積）"))
+```
+
+
+陽性確定者数の累計と死亡者数の累計を最小最大正規化して比べてみる。
+```{r}
+scaled <- function(x) {
+  scale(x, center = min(x), scale = diff(range(x)))
+}
+
+scale_axis <- 4
+
+x_mhlw %>% 
+  dplyr::mutate(scaled_cum = scaled(cum),
+                scaled_cum_dead = scaled(cum_dead),
+                scaled_ratio = scaled_cum_dead / scaled_cum) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = scaled_cum), colour = "dark green") +
+    ggplot2::geom_line(ggplot2::aes(y = scaled_cum_dead), colour = "dark red") +
+    ggplot2::geom_line(ggplot2::aes(y = scaled_ratio / scale_axis),
+                       colour = "gray") +
+    ggplot2::scale_y_continuous(
+      name = "正規化比率",
+      sec.axis = ggplot2::sec_axis(~ . * scale_axis,
+                                    name = "死亡者比率")) + 
+    ggplot2::labs(x = "日付")
+```
+
+　  
+死亡者数の増加傾向は春から初夏の急増時を除くと似たような傾向が見て取れるが、9月以降では死亡者数の増加傾向が緩くなっているように見える。
