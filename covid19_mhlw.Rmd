@@ -205,7 +205,7 @@ plotly::ggplotly()
 
 　  
 
-### 入院治療などを要する者の推移
+### 入院治療等を要する者の推移
 ```{r}
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
