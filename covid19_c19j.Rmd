@@ -20,21 +20,18 @@ require(jsonlite)
 
 
 # Covid19 Japan
-[Covid19 Japan](covid19japan.com)が独自に収集している陽性確定者単位のデータ。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されているが、データはJSON形式である点に注意。発表後に修正されたレコード（インスタンス）は削除されれずにステータスなどが変更されているだけなので、「レコード数 $\neq$ 累計陽性確定者」である点に注意。
+[Covid19 Japan](covid19japan.com)が独自に収集している陽性者単位のデータ（個票データ）。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されており、データはJSON形式。「レコード数 $\neq$ 累計陽性者数」であることに注意。
 
 　  
 
 ## Import
-[Covid19 Japan](covid19japan.com)が[GitHub](https://github.com/reustle/covid19japan)で公開しているデータはJSOM形式のため、また、最新データがインデックスで示されているため、読み込むには少し工夫が必要である。
+[Covid19 Japan](covid19japan.com)が[GitHub](https://github.com/reustle/covid19japan)で公開しているデータは前述のようにJSON形式であり、最新データは`latest.json`ファイルで示されている。このため、読み込む際はひと工夫必要。
 
 
 ### Patient Data
-陽性者単位のデータ。
+陽性者単位の個票データ。
 ```{r}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
-
-data_at <- readr::read_lines(paste0(path, "latest.json")) %>% 
-  stringr::str_sub(start = 1L, end = -6L)
 
 df <- path %>% 
   paste0("latest.json") %>% 
@@ -45,10 +42,10 @@ df <- path %>%
 df
 ```
 
-　  
+
 
 ### Summary Data 【参考】
-死亡者数や重症者数などの推移データは`summary`フォルダ内のJSON形式ファイルにまとめられている。`summary`フォルダの他に`summary_min`フォルダというフォルダがあるが、`summary_min`フォルダ内のJSONファイルは改行を省略した形式のファイル。
+死亡者数や重症者数などの推移データは`summary`フォルダ内のJSON形式ファイルにまとめられている。`summary`フォルダの他に`summary_min`フォルダというフォルダがあるが、`summary_min`フォルダ内のJSONファイルは単に改行を省略して小さくしたファイル。
 ```{r}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/"
 
@@ -62,17 +59,19 @@ df_s %>% summary()
 ```
 
 　  
-要約すると分かるが、3つのデータフレームと一つのベクトルから構成されている。参考までに各データの内容を簡単に紹介する。  
+要約すると分かるように3つのデータフレーム（都道府県単位、八地方区分単位、日次）と一つのベクトル（更新日時）から構成されている。  
 
 　  
 
 #### 都道府県単位集計
-厳密には都道府県＋空港検疫・ダイヤモンドプリンセス・長崎クルーズ船・その他の51区分になっておえい、一部の変量（フィーチャー）がネストされている。
+更新日次時点における都道府県単位での累積値。陽性者・死亡者などの時系列集計データはネストで格納されている。  
+厚生労働省のオープンデータが集計から除いている空港検疫・ダイヤモンドプリンセス・長崎クルーズ船・その他を含めて全`r nrow(df_s$prefectures)`区分。
 ```{r}
 df_s$prefectures
 ```
 
 ```{r, include=FALSE, eval=FALSE}
+# 都道府県別集計
 df_s$prefectures %>% 
   dplyr::select(dailyConfirmedCount, dailyConfirmedStartDate, name) %>% 
   dplyr::mutate(dailyConfirmedStartDate = lubridate::as_date(dailyConfirmedStartDate)) %>% 
@@ -115,7 +114,8 @@ df_s$prefectures %>%
 　  
 
 #### 地方単位集計
-いわゆる八地方区分単位で集計されているデータ。こちらも都道府県単位集計と同様に一部の変量（フィーチャー）がネストされている。ただし、ネストされている変量（フィーチャー）を展開・集計しても集計値とは異なっている。
+更新日次時点における八地方区分単位での累積値。陽性者・死亡者などの時系列集計データは都道府県単位と同様にネストで格納されている。  
+ただし、確認した時点（2020/11/3）では、時系列集計値の合計と累積値が一致しない。
 ```{r}
 df_s$regions
 ```
@@ -142,7 +142,7 @@ df_s$regions %>%
 　  
 
 #### 日次集計
-発表があった日ごとにまとめているデータ（個票データを集計したもの）。最初の行（インスタンス、レコード）の日付がおかしい点に注意（他のデータから推測すると恐らく"2020-01-08"）。
+個票データを日次で集計したもの。累積値の他に移動平均も含まれているが、暗黙の欠落を含んだデータである点に注意が必要。
 ```{r}
 df_s$daily
 ```
@@ -150,7 +150,7 @@ df_s$daily
 　  
 
 #### 更新日時
-集計データファイル（JSON形式）の更新日時が記録されている。
+の更新日時が記録されている。
 
 ```{r}
 df_s$updated
@@ -159,7 +159,7 @@ df_s$updated
 　  
 
 ### Area Data
-Covid19 Japanのデータは陽性者単位のデータであるため、報告主体である都道府県のデータが含まれている。これを利用して地域・地方ごとの分類を行う場合に使える都道府県データを用意した。この都道府県データは[Gist](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)にて公開している。
+Covid19 Japanのデータは個票データなので、様々な属性が含まれている。これらの属性を利用して地域・地方ごとの分析を行う場合に便利な都道府県データを用意した。このデータは[Gist](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)で公開している。
 ```{r, echo=FALSE, message=FALSE}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
@@ -177,22 +177,29 @@ prefs
 
 　  
 
+### Others
+その他のオープンデータ
+
+[新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
+
+　  
+
 ## Data Wrangling (tidy and transform)
 
 ### Summarize
-まず、オリジナルのデータがどのようになっているか`skimr`パッケージを用いてサマライズしておく。
+最初にデータがどのようになっているか確認する。これには要約に便利な`skimr`パッケージを用いる。
 ```{r}
 df %>% 
   skimr::skim()
 ```
 
 　  
-元がJSON形式なので、読み込んだ直後は殆どの変量（フィーチャー）が文字型になっていることが分かる。また、意外と欠損が多いことも分かるので、欠損が非常に多い変量は除いておくことにする。  
+元がJSON形式なので、読み込んだ直後は殆どの変量（フィーチャー）が文字型になっていることが分かる。また、意外と欠損が多いことも分かる。  
 
 　  
 
 ### Transform
-各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合します。
+各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合する。
 ```{r}
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
@@ -209,34 +216,37 @@ x <- df %>%
                 deceasedDate = lubridate::as_date(deceasedDate),
                 deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
   dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
-  dplyr::rename(Pref = `都道府県`, region = `八地方区分`, population = `推計人口`)
+  dplyr::select(-`推計人口`) %>% 
+  dplyr::rename(Pref = `都道府県`, region = `八地方区分`)
 
 x
+```
+
+変換結果を要約してみると
+```{r}
 x %>% 
   skimr::skim()
 ```
 
 　  
-文字型を因子型に変換するだけでも大まかな傾向が見える。例えば
+文字型を因子型に変換するだけでも大まかな傾向が見えるようになる。例えば
 
-* 年齢別で見ると20代、30代、年齢非回答、40代の順に陽性者が多い
-* 都道府県では人口の多い、東京、大阪、神奈川、愛知の順
+* 年齢別で見ると20代、30代、年齢不明（恐らく非回答）、40代の順に多い
+* 都道府県別では東京、大阪、神奈川、愛知の順と人口にほぼ比例
 * 地方区分で見ると関東、近畿、九州、中部となっており九州地方が以外と多い
 
 ことが読める。  
 
-`parientStatus`は症状（状態）と状況が混在しているため、分かりにくいが以下の通りである。なお、`Unspecified`とは別に欠損値（`NA`）もある。
+`patientStatus`は以下の通りで、ほぼ更新されていないのと思われる。死者数などの推移を見る場合はサマリデータを使った方がいい。
 
-levels                  | 意味
-------------------------|----------------
-Hospitalized            | 入院中
-Critical (Hospitalized) | 重症（入院中）
-Home Quarantine         | 自宅療養中
-Hotel Quarantine        | ホテル療養中
-Recoverd                | 回復
-Discharged              | 退院済
-Deceased                | 死亡
-Unspecified             | 詳細不明
+```{r}
+x %>% 
+  dplyr::group_by(patientStatus) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(Japanese = c("回復", "入院中", "退院済", "死亡", "詳細不明",
+                             "重症", "自宅療養", "ホテル療養", NA))
+```
 
 　  
 
@@ -245,12 +255,45 @@ Unspecified             | 詳細不明
 　  
 
 #### 都道府県別集計
-都道府県別の総陽性者数を求め、上位10県と下位10県を求めてみる。
+都道府県別の総陽性者数と人口千人あたりの陽性者率を求める。
 ```{r}
 x %>% 
   dplyr::group_by(Pref) %>% 
-  dplyr::summarise(n = n())
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
+  dplyr::select(Pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2))
+```
 
+上位10県を累計人数と人口千人あたりの陽性者数で比べてみる。
+```{r}
+x %>% 
+  dplyr::group_by(Pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
+  dplyr::select(Pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2)) %>% 
+  dplyr::slice_max(order_by = n, n = 10) %>% 
+  dplyr::rename(`累計陽性者数` = n, `推計人口[千人]` = population, `率` = rate)
+
+x %>% 
+  dplyr::group_by(Pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
+  dplyr::select(Pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2)) %>% 
+  dplyr::slice_max(order_by = rate, n = 10) %>% 
+  dplyr::rename(`累計陽性者数` = n, `推計人口[千人]` = population, `率` = rate)
+```
+
+累計の陽性者数は、ほぼ、人口に比例しているが、一部の県での感染率が高いことが分かる。
+
+```{r, include=FALSE, eval=FALSE}
+"https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8" %>% 
+  googlesheets4::read_sheet()
+```
+
+```{r, include=FALSE, eval=FALSE}
 x %>% 
   dplyr::group_by(Pref, region) %>% 
   dplyr::summarise(n = n()) %>% 
@@ -267,20 +310,24 @@ x %>%
 　  
 
 #### 八地方区分別集計
-
+地方区分で比較すると都道府県と同様に人口の多い関東、近畿はともかく、九州、北海道の陽性者率が高いことが分かる。
 ```{r}
+region <- prefs %>% 
+  dplyr::group_by(`八地方区分`) %>% 
+  dplyr::summarise(population = sum(`推計人口`)) %>% 
+  dplyr::rename(region = `八地方区分`)
+
 x %>% 
-  dplyr::group_by(Pref, region) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::ungroup() %>% 
   dplyr::group_by(region) %>% 
-  dplyr::summarise(n = sum(n)) %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n)
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(region, by = c("region" = "region")) %>% 
+  dplyr::select(region, n, population) %>% 
+  dplyr::mutate(rate = round(n / population, 2))
 ```
 
 　  
 
-```{r}
+```{r, include=FALSE, eval=FALSE}
 x %>% 
   dplyr::group_by(date, region) %>% 
   dplyr::summarise(n = n()) %>% 
@@ -403,6 +450,56 @@ x_by_region
 <!-- 　   -->
 
 ## Visualizing
+
+### 都道府県別
+```{r}
+x %>% 
+  dplyr::group_by(Pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
+  dplyr::select(Pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = "", x = "推計人口[千人]", y = "累計陽性者数")
+
+x %>% 
+  dplyr::group_by(Pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
+  dplyr::select(Pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2)) %>% 
+  dplyr::filter(n < 1000) %>% 
+  # dplyr::slice_min(order_by = n, n = 38) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = "累計陽性者千人未満", x = "推計人口[千人]", y = "累計陽性者数")
+```
+
+
+### 地方区分別
+```{r}
+region <- prefs %>% 
+  dplyr::group_by(`八地方区分`) %>% 
+  dplyr::summarise(population = sum(`推計人口`)) %>% 
+  dplyr::rename(region = `八地方区分`)
+
+x %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::left_join(region, by = c("region" = "region")) %>% 
+  dplyr::select(region, n, population) %>% 
+  dplyr::mutate(rate = round(n / population, 2)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_point(ggplot2::aes(colour = region)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region, colour = region)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = "", x = "推計人口[千人]", y = "累計陽性者数")
+```
 
 
 ### 都道府県別日次推移
