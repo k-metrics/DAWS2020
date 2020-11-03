@@ -13,9 +13,17 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 require(tidyverse)
 require(jsonlite)
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
 ```
 
 
@@ -347,7 +355,8 @@ x %>%
 #### 日次集計
 日次の陽性者数、前日比、累計を求める。
 ```{r}
-x %>% 
+x %>%
+  dplyr::filter(!is.na(Pref)) %>% 
   dplyr::group_by(date) %>% 
   dplyr::summarise(n = n()) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
@@ -360,16 +369,13 @@ x %>%
 #### 都道府県別日次集計
 ```{r}
 x_prefs <- x %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
   dplyr::group_by(date, Pref) %>% 
   dplyr::summarise(n = n()) %>% 
   dplyr::ungroup() %>% 
   tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
   tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "n")
 x_prefs
-
-lagdiff <- function(n) {
-  n - dplyr::lag(n, default = 0L)
-}
 
 x_prefs_diff <- x_prefs %>% 
   tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
@@ -398,6 +404,7 @@ x_by_prefs
 #### 八地方区分別日次集計
 ```{r}
 x_region <- x %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
   dplyr::group_by(date, region) %>% 
   dplyr::summarise(n = n()) %>% 
   dplyr::ungroup() %>% 
@@ -405,9 +412,6 @@ x_region <- x %>%
   tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n")
 x_region
 
-lagdiff <- function(n) {
-  n - dplyr::lag(n, default = 0L)
-}
 
 x_region_diff <- x_region %>% 
   tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
@@ -421,12 +425,21 @@ x_region_cum <- x_region %>%
   tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "cum")
 x_region_cum
 
+x_by_region_ma <- x_region %>% 
+  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
+  dplyr::mutate_if(is.integer, .funs = ma7) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "ma7")
+x_by_region_ma  
+
 x_by_region <- x_region %>% 
   dplyr::left_join(x_region_diff, by = c("date" = "date", "region" = "region")) %>% 
   dplyr::left_join(x_region_cum, by = c("date" = "date", "region" = "region")) %>% 
-  dplyr::left_join(prefs, ., by = c("八地方区分" = "region")) %>% 
-  dplyr::mutate(region = forcats::fct_inorder(`八地方区分`)) %>% 
-  dplyr::select(date, region, n, diff, cum) %>% 
+  dplyr::left_join(x_by_region_ma, by = c("date" = "date", "region" = "region")) %>% 
+  dplyr::mutate(region = forcats::fct_relevel(region,
+                                              "北海道地方", "東北地方", "関東地方",
+                                              "中部地方", "近畿地方", "中国地方",
+                                              "四国地方", "九州地方")) %>%
+  dplyr::select(date, region, n, diff, cum, ma7) %>% 
   dplyr::arrange(date)
 x_by_region
 ```
@@ -450,6 +463,184 @@ x_by_region
 <!-- 　   -->
 
 ## Visualizing
+
+### 全国の日次推移
+```{r}
+sec_scale <- 100
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+x %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
+                  fill = list(n = 0L)) %>% 
+  dplyr::mutate(diff = lagdiff(n), cum = cumsum(n),
+                ma7 = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>%
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+                      alpha = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dotted", size = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（単日）・移動平均（点線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")) + 
+    ggplot2::labs(title = paste0("@", datetime), x = "")
+
+x %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
+                  fill = list(n = 0L)) %>% 
+  dplyr::mutate(diff = lagdiff(n), cum = cumsum(n)) %>%
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = diff), colour = "dark green", alpha = 0.5) + 
+    ggplot2::labs(title = paste0("@", datetime), x = "", y = "陽性者数前日差")
+```
+
+　  
+
+### 地方別の日次推移
+
+#### 陽性者数（単日）
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = n)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      width = 1.0, alpha = 0.5) + 
+    ggplot2::labs(title = paste0("単日 @", datetime),
+                  x = "", y = "陽性者数[人]") 
+```
+
+　  
+
+#### 陽性者数（単日）の移動平均
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = ma7, colour = region)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggplot2::labs(title = paste0("7日間移動平均 @", datetime),
+                  x = "", y = "陽性者数[人]") + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region),
+                             data = subset(x_by_region, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 3) + 
+    ggplot2::lims(x = c(min(x_by_region$date),
+                        max(x_by_region$date) + 45))
+```
+
+　  
+
+#### 陽性者数（累積）
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = cum, colour = region)) + 
+    ggplot2::geom_line() +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("累積陽性者数@", datetime), x = "", y = "累積[人]") + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region),
+                             data = subset(x_by_region, date == max(date)))
+```
+
+　  
+
+#### 陽性者数（単日）＋累積陽性者数
+```{r}
+sec_scale <- 50
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      alpha = 0.5, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
+    ggplot2::facet_wrap(~ region) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime), x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")
+    )
+
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      alpha = 0.5, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = region),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
+    ggplot2::facet_wrap(~ region, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime), x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")
+    )
+```
+
+
+
+#### 陽性者数（前日差）
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = diff, colour = region)) +
+    ggplot2::facet_wrap(~ region, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("陽性者数前日差, Free Y scale @", datetime),
+                  x = "", y = "")
+```
+
+　  
+
+### 都道府県別日次推移
+```{r, fig.height=15, fig.width=10}
+sec_scale <- 100
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+
+x_by_prefs %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
+    ggplot2::facet_wrap(~ Pref, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime), x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")
+    )
+
+x_by_prefs %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+  ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
+    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime), x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")
+    )
+
+x_by_prefs %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = diff, colour = Pref)) +
+    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("陽性者数前日差, Free Y scale @", datetime),
+                  x = "", y = "")
+```
+
 
 ### 都道府県別
 ```{r}
@@ -477,7 +668,7 @@ x %>%
     ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
     ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = "累計陽性者千人未満", x = "推計人口[千人]", y = "累計陽性者数")
+    ggplot2::labs(title = "累計陽性者数千人未満", x = "推計人口[千人]", y = "累計陽性者数")
 ```
 
 
@@ -502,107 +693,11 @@ x %>%
 ```
 
 
-### 都道府県別日次推移
-```{r, fig.height=15, fig.width=10}
-sec_scale <- 100
-ncol <- 5
-
-x_by_prefs %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol) + 
-    ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = "Fixed scale", x = "", y = "") + 
-    ggplot2::scale_y_continuous(
-      name = "陽性者（単日）",
-      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
-    )
-
-x_by_prefs %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
-  ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
-    ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = "Free Y scale", x = "", y = "") + 
-    ggplot2::scale_y_continuous(
-      name = "陽性者（単日）",
-      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
-    )
-
-```
-
-
-### 八地方区分別日次推移
-```{r}
-sec_scale <- 10
-
-x_by_region %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
-    ggplot2::facet_wrap(~ region) + 
-    ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = "Fixed scale", x = "", y = "") + 
-    ggplot2::scale_y_continuous(
-      name = "陽性者（単日）",
-      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
-    )
-
-x_by_region %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
-    ggplot2::facet_wrap(~ region, scales = "free_y") + 
-    ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = "Free Y scale", x = "", y = "") + 
-    ggplot2::scale_y_continuous(
-      name = "陽性者（単日）",
-      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
-    )
-```
 
 
 
 
-<!-- ```{r} -->
-<!-- sec_scale <- 50 -->
 
-<!-- x %>%  -->
-<!--   dplyr::filter(!is.na(fct_pref)) %>%  -->
-<!--   dplyr::group_by(dateAnnounced) %>%  -->
-<!--   dplyr::summarise(n = n()) %>%  -->
-<!--   tidyr::complete(dateAnnounced = seq.Date(from = min(dateAnnounced), -->
-<!--                                            to = max(dateAnnounced), -->
-<!--                                            by = "day"), -->
-<!--                   fill = list(n = 0L)) %>%  -->
-<!--   dplyr::mutate(cum = cumsum(n), -->
-<!--                 ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE)) %>% -->
-<!--   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced)) +  -->
-<!--     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", -->
-<!--                       fill = "dark green", alpha = 0.5, width = 1.0) +  -->
-<!--     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), -->
-<!--                        colour = "dark green") + -->
-<!--     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark red") +  -->
-<!--     ggplot2::scale_y_continuous( -->
-<!--       name = "陽性確定数（日別）・7日間移動平均（濃赤折線）", -->
-<!--       sec.axis = ggplot2::sec_axis(~ . * sec_scale, -->
-<!--                                     name = "累積陽性確定者数（折線）") -->
-<!--     ) + -->
-<!--     ggplot2::labs(title = paste0("Covid19, Japan（@", Sys.time(), "）"), -->
-<!--                   subtitle = "", x = "日付") -->
-
-<!-- plotly::ggplotly() -->
-<!-- ``` -->
 
 
 <!-- ### 地方区分別 -->
@@ -711,35 +806,6 @@ x_by_region %>%
 
 <!-- ``` -->
 
-<!-- 　   -->
-<!-- 九州が8月頃から急増しているのは、県別に見ると福岡と沖縄での急増が原因と分かります。 -->
-<!-- ```{r} -->
-<!-- x %>%  -->
-<!--   dplyr::filter(`八地方区分` == "九州地方") %>%  -->
-<!--   dplyr::group_by(dateAnnounced, `都道府県`) %>%  -->
-<!--   dplyr::summarise(n = n()) %>%  -->
-<!--   dplyr::ungroup() %>%  -->
-<!--   tidyr::pivot_wider(names_from = `都道府県`, values_from = n) %>%  -->
-<!--   dplyr::mutate_if(is.integer, list(~tidyr::replace_na(., 0L))) %>%  -->
-<!--   tidyr::pivot_longer(cols = -dateAnnounced, -->
-<!--                       names_to = "都道府県", values_to = "n") %>%  -->
-<!--   dplyr::mutate(`都道府県` = forcats::fct_relevel(`都道府県`, -->
-<!--                                               "福岡県", "佐賀県", "長崎県", -->
-<!--                                               "熊本県", "大分県", "宮崎県", -->
-<!--                                               "鹿児島県", "沖縄県")) %>% -->
-<!--   dplyr::group_by(`都道府県`) %>%  -->
-<!--   dplyr::mutate(cum = cumsum(n)) %>%  -->
-<!--   ggplot2::ggplot(ggplot2::aes(x = dateAnnounced, y = cum, -->
-<!--                                fill = `都道府県`)) + -->
-<!--     ggplot2::geom_area(stat = "identity", alpha = 1, -->
-<!--                        position = ggplot2::position_stack(reverse = FALSE)) + -->
-<!--     ggplot2::scale_fill_brewer(palette = "Set3") + -->
-<!--     ggplot2::labs(title = paste0("Covid19, 九州地方（@", Sys.time(), "）"), -->
-<!--                   y = "累計人数") -->
-
-<!-- ``` -->
-
-<!-- 　   -->
 
 <!-- ### クラスタ比率 -->
 <!-- ```{r} -->
