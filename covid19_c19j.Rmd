@@ -374,7 +374,7 @@ x_by_all
 　  
 
 #### 地方区分別日次集計
-```{r}
+```{r, include=FALSE, eval=FALSE}
 # 陽性者数
 x_region <- x %>% 
   dplyr::filter(!is.na(Pref)) %>% 
@@ -382,7 +382,9 @@ x_region <- x %>%
   dplyr::summarise(n = n()) %>% 
   dplyr::ungroup() %>% 
   tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n")
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L))
 x_region
 
 # 前日差
@@ -419,11 +421,35 @@ x_by_region <- x_region %>%
 x_by_region
 ```
 
+```{r}
+x_by_region <- x %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
+  dplyr::group_by(date, region) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::group_by(region) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs %>% dplyr::distinct(`八地方区分`), .,
+                   by = c("八地方区分" = "region")) %>% 
+  dplyr::mutate(region = forcats::fct_inorder(`八地方区分`)) %>% 
+  dplyr::select(date, region, n, diff, cum, ma7) %>% 
+  dplyr::arrange(date)
+x_by_region
+```
+
 　  
 
 #### 都道府県別日次集計
 陽性者数、前日差、累計、移動平均。
-```{r}
+```{r, include=FALSE, eval=FALSE}
 # 陽性者数
 x_prefs <- x %>% 
   dplyr::filter(!is.na(Pref)) %>% 
@@ -431,7 +457,9 @@ x_prefs <- x %>%
   dplyr::summarise(n = n()) %>% 
   dplyr::ungroup() %>% 
   tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "n")
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L))
 x_prefs
 
 # 前日比
@@ -459,6 +487,29 @@ x_by_prefs <- x_prefs %>%
   dplyr::left_join(x_prefs_diff, by = c("date" = "date", "Pref" = "Pref")) %>% 
   dplyr::left_join(x_prefs_cum, by = c("date" = "date", "Pref" = "Pref")) %>% 
   dplyr::left_join(x_prefs_ma, by = c("date" = "date", "Pref" = "Pref")) %>% 
+  dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
+  dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
+  dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
+  dplyr::arrange(date)
+x_by_prefs
+```
+
+```{r}
+x_by_prefs <- x %>% 
+  dplyr::filter(!is.na(Pref)) %>% 
+  dplyr::group_by(date, Pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::group_by(Pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
   dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
   dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
   dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
@@ -496,7 +547,7 @@ df_s$prefectures %>%
 
 
 #### 都道府県別
-```{r}
+```{r, include=FALSE, eval=FALSE}
 start <- df_s$prefectures %>% 
   dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
   dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
@@ -559,6 +610,42 @@ d_by_prefs %>%
   tidyr::pivot_longer(cols = -id, names_to = "Pref", values_to ="deceased") %>% 
   dplyr::select(-id)
 ```
+
+```{r}
+start <- df_s$prefectures %>% 
+  dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
+  dplyr::arrange(pcode) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::select(date, Pref = `都道府県`) %>% 
+  dplyr::distinct(date) %>% 
+  .$date %>% lubridate::as_date()
+
+d_by_prefs <- df_s$prefectures %>% 
+  dplyr::select(deceased = dailyDeceasedCount, pref = name) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::select(Pref = `都道府県`, deceased) %>% 
+  tidyr::unnest(deceased) %>% 
+  tidyr::pivot_wider(names_from = Pref, values_from = deceased) %>% 
+  tidyr::unnest() %>% 
+  dplyr::mutate(date = seq.Date(from = start, to = start + nrow(.) - 1,
+                                by = "day")) %>% 
+  dplyr::select(date, dplyr::everything()) %>% 
+  tidyr::pivot_longer(col = -date, names_to = "Pref", values_to = "n") %>% 
+  dplyr::group_by(Pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
+  dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
+  dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
+  dplyr::arrange(date)
+d_by_prefs
+```
+
 
 
 
@@ -736,7 +823,7 @@ x_by_prefs %>%
 x_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
   ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
+                      alpha = 0.35, width = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
                        linetype = "solid", size = 0.25) + 
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
@@ -752,7 +839,7 @@ x_by_prefs %>%
 ```
 
 
-```{r}
+```{r, fig.height=14, fig.width=10}
 x_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_line(ggplot2::aes(y = diff, colour = Pref)) +
@@ -791,7 +878,7 @@ d_by_prefs %>%
 d_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
   ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
-                      alpha = 0.25, width = 1.0) + 
+                      alpha = 0.35, width = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
                        linetype = "solid", size = 0.25) + 
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
@@ -830,14 +917,14 @@ x %>%
   dplyr::left_join(prefs, by = c("Pref" = "都道府県")) %>% 
   dplyr::select(Pref, n, population = `推計人口`) %>% 
   dplyr::mutate(rate = round(n / population, 2)) %>% 
-  dplyr::filter(n < 1000) %>% 
+  dplyr::filter(n < 5000) %>% 
   # dplyr::slice_min(order_by = n, n = 38) %>% 
   ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
     ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
     ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = "累計陽性者数千人未満", caption = caption,
-                  x = "推計人口[千人]", y = "累計陽性者数")
+                  x = "推計人口[五千人]", y = "累計陽性者数")
 ```
 
 
