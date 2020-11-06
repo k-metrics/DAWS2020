@@ -29,16 +29,15 @@ caption <- "Data Source: covid19japan.com"
 ```
 
 
-# Covid19 Japan
 [Covid19 Japan](covid19japan.com)が独自に収集している陽性者単位のデータ（個票データ）。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されており、データはJSON形式。「レコード数 $\neq$ 累計陽性者数」であることに注意。
 
 　  
 
-## Import
+# Import
 [Covid19 Japan](covid19japan.com)が[GitHub](https://github.com/reustle/covid19japan)で公開しているデータは前述のようにJSON形式であり、最新データは`latest.json`ファイルで示されている。このため、読み込む際はひと工夫必要。
 
 
-### Patient Data
+## 個票データ（Patient Data）
 陽性者単位の個票データ。
 ```{r}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
@@ -54,7 +53,7 @@ df
 
 
 
-### Summary Data 【参考】
+## 集計データ（Summary Data）
 死亡者数や重症者数などの推移データは`summary`フォルダ内のJSON形式ファイルにまとめられている。`summary`フォルダの他に`summary_min`フォルダというフォルダがあるが、`summary_min`フォルダ内のJSONファイルは単に改行を省略して小さくしたファイル。
 ```{r}
 path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/"
@@ -73,102 +72,41 @@ df_s %>% summary()
 
 　  
 
-#### 都道府県単位集計
+### 都道府県単位集計
 更新日次時点における都道府県単位での累積値。陽性者・死亡者などの時系列集計データはネストで格納されている。  
 厚生労働省のオープンデータが集計から除いている空港検疫・ダイヤモンドプリンセス・長崎クルーズ船・その他を含めて全`r nrow(df_s$prefectures)`区分。
 ```{r}
 df_s$prefectures
 ```
 
-```{r, include=FALSE, eval=FALSE}
-# 都道府県別集計
-df_s$prefectures %>% 
-  dplyr::select(dailyConfirmedCount, dailyConfirmedStartDate, name) %>% 
-  dplyr::mutate(dailyConfirmedStartDate = lubridate::as_date(dailyConfirmedStartDate)) %>% 
-  tidyr::unnest(cols = dailyConfirmedCount) %>% 
-  dplyr::group_by(name) %>% 
-  dplyr::summarise(n = sum(dailyConfirmedCount))
-```
-
-
-```{r, include=FALSE, eval=FALSE}
-prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
-  readr::read_csv() %>% 
-  dplyr::rename(pcode = `コード`) %>% 
-  dplyr::mutate(pref = stringr::str_to_title(pref),
-                pcode = forcats::fct_inorder(pcode),
-                fct_pref = forcats::fct_inorder(pref),
-                `都道府県` = forcats::fct_inorder(`都道府県`),
-                `八地方区分` = forcats::fct_inorder(`八地方区分`),
-                `広域圏` = forcats::fct_inorder(`広域圏`),
-                `通俗的区分` = forcats::fct_inorder(`通俗的区分`))
-
-df_s$prefectures %>% 
-  dplyr::select(dailyDeceasedCount, dailyDeceasedStartDate, name) %>% 
-  dplyr::mutate(dailyDeceasedStartDate = lubridate::as_date(dailyDeceasedStartDate)) %>% 
-  tidyr::unnest(cols = dailyDeceasedCount) %>% 
-  dplyr::group_by(name) %>% 
-  dplyr::summarise(n = sum(dailyDeceasedCount))
-
-# %>% print() %>% 
-#   dplyr::left_join(prefs, by = c("name" = "pref")) %>% 
-#   dplyr::group_by(`八地方区分`) %>% 
-#   dplyr::summarise(dead = sum(n))
-
-df_s$prefectures %>% 
-  dplyr::select(deceased, name) %>% 
-  dplyr::arrange(name)
-```
-
-
 　  
 
-#### 地方単位集計
+### 地方単位集計
 更新日次時点における八地方区分単位での累積値。陽性者・死亡者などの時系列集計データは都道府県単位と同様にネストで格納されている。  
 ただし、確認した時点（2020/11/3）では、時系列集計値の合計と累積値が一致しない。
 ```{r}
 df_s$regions
 ```
 
-```{r, include=FALSE, eval=FALSE}
-df_s$regions %>% 
-  dplyr::select(dailyConfirmedCount, dailyConfirmedStartDate, name) %>% 
-  dplyr::mutate(dailyConfirmedStartDate = lubridate::as_date(dailyConfirmedStartDate)) %>% 
-  tidyr::unnest(cols = -dailyConfirmedStartDate ) %>% print() %>% 
-  # tadplyr::group_by(name) %>%
-  # dplyr::summarise(n = sum(dailyConfirmedCount))
-  tidyr::pivot_wider(names_from = name, values_from = dailyConfirmedCount) %>% print() %>% 
-  tidyr::unnest(cols = c(-dailyConfirmedStartDate, Kanto, Kansai, Chubu, Hokkaido, Kyushu, Tohoku, Chugoku, Shikoku)) %>% 
-  dplyr::mutate(date = seq.Date(from = dailyConfirmedStartDate[1],
-                                to = dailyConfirmedStartDate[1] + max(nrow(.) - 1),
-                                by = "day")) %>%
-  dplyr::select(date, dplyr::everything(), -dailyConfirmedStartDate) %>% print() %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "regions", values_to = "n") %>% print() %>% 
-  tidyr::pivot_wider(names_from = regions, values_from = n) %>% 
-  dplyr::summarise_if(.predicate = is.integer, .funs = sum)
-```
-
-
 　  
 
-#### 日次集計
-個票データを日次で集計したもの。累積値の他に移動平均も含まれているが、暗黙の欠落を含んだデータである点に注意が必要。
+### 日次集計
+個票データを日次で集計したもの。累積値の他に移動平均も含まれているが、日付を見れば分かる通り暗黙の欠落を含んでいる。
 ```{r}
 df_s$daily
 ```
 
 　  
 
-#### 更新日時
-の更新日時が記録されている。
-
+### 更新日時
+集計データの更新日時。
 ```{r}
 df_s$updated
 ```
 
 　  
 
-### Area Data
+## Area Data
 Covid19 Japanのデータは個票データなので、様々な属性が含まれている。これらの属性を利用して地域・地方ごとの分析を行う場合に便利な都道府県データを用意した。このデータは[Gist](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)で公開している。
 ```{r, echo=FALSE, message=FALSE}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>% 
@@ -187,16 +125,16 @@ prefs
 
 　  
 
-### Others
-その他のオープンデータ
+## Others
+その他のオープンデータ。
 
-[新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
+* [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
 
 　  
 
-## Data Wrangling (tidy and transform)
+# Data Wrangling (tidy and transform)
 
-### Summarize
+## Summarize
 最初にデータがどのようになっているか確認する。これには要約に便利な`skimr`パッケージを用いる。
 ```{r}
 df %>% 
@@ -208,7 +146,7 @@ df %>%
 
 　  
 
-### Transform
+## Transform
 各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合する。
 ```{r}
 x <- df %>% 
@@ -260,11 +198,11 @@ x %>%
 
 　  
 
-## Data Wrangling (tidy and transform)
+# Data Wrangling (tidy and transform)
 
-### 集計（陽性者）
+## 集計（陽性者）
 
-#### 地方別集計
+### 地方別集計
 地方区分で比較すると都道府県と同様に人口の多い関東、近畿はともかく、九州、北海道の陽性者率が高いことが分かる。
 ```{r}
 region <- prefs %>% 
@@ -282,24 +220,7 @@ x %>%
 
 　  
 
-```{r, include=FALSE, eval=FALSE}
-x %>% 
-  dplyr::group_by(date, region) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n) %>% 
-  dplyr::rename(`その他` = "NA") %>% 
-  tidyr::complete(date = seq.Date(from = lubridate::as_date("2020-01-08"),
-                                  to = max(date), by = "day")) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "regions", values_to = "n") %>% 
-  tidyr::replace_na(list(n = 0L)) %>% 
-  tidyr::pivot_wider(names_from = regions, values_from = n) %>% print() %>% 
-  dplyr::summarise_if(is.integer, .funs = sum)
-```
-
-　  
-
-#### 都道府県別集計
+### 都道府県別集計
 都道府県別の総陽性者数と人口千人あたりの陽性者率。
 ```{r}
 x %>% 
@@ -354,9 +275,9 @@ x %>%
 
 　  
 
-### 日次集計（陽性者）
+## 日次集計（陽性者）
 
-#### 全国日次集計
+### 全国日次集計
 陽性者数、前日、累計、移動平均。
 ```{r}
 x_by_all <- x %>% 
@@ -373,54 +294,7 @@ x_by_all
 
 　  
 
-#### 地方区分別日次集計
-```{r, include=FALSE, eval=FALSE}
-# 陽性者数
-x_region <- x %>% 
-  dplyr::filter(!is.na(Pref)) %>% 
-  dplyr::group_by(date, region) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
-  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n") %>% 
-  tidyr::replace_na(replace = list(n = 0L))
-x_region
-
-# 前日差
-x_region_diff <- x_region %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = lagdiff) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "diff")
-x_region_diff
-
-# 累計
-x_region_cum <- x_region %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = cumsum) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "cum")
-x_region_cum
-
-# 移動平均
-x_by_region_ma <- x_region %>% 
-  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = ma7) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "ma7")
-x_by_region_ma
-
-
-x_by_region <- x_region %>% 
-  dplyr::left_join(x_region_diff, by = c("date" = "date", "region" = "region")) %>% 
-  dplyr::left_join(x_region_cum, by = c("date" = "date", "region" = "region")) %>% 
-  dplyr::left_join(x_by_region_ma, by = c("date" = "date", "region" = "region")) %>% 
-  dplyr::left_join(prefs %>% dplyr::distinct(`八地方区分`), .,
-                   by = c("八地方区分" = "region")) %>% 
-  dplyr::mutate(region = forcats::fct_inorder(`八地方区分`)) %>% 
-  dplyr::select(date, region, n, diff, cum, ma7) %>%
-  dplyr::arrange(date)
-x_by_region
-```
-
+### 地方区分別日次集計
 ```{r}
 x_by_region <- x %>% 
   dplyr::filter(!is.na(Pref)) %>% 
@@ -447,53 +321,8 @@ x_by_region
 
 　  
 
-#### 都道府県別日次集計
+### 都道府県別日次集計
 陽性者数、前日差、累計、移動平均。
-```{r, include=FALSE, eval=FALSE}
-# 陽性者数
-x_prefs <- x %>% 
-  dplyr::filter(!is.na(Pref)) %>% 
-  dplyr::group_by(date, Pref) %>% 
-  dplyr::summarise(n = n()) %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "n") %>% 
-  tidyr::replace_na(replace = list(n = 0L))
-x_prefs
-
-# 前日比
-x_prefs_diff <- x_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = lagdiff) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "diff")
-x_prefs_diff
-
-# 累計
-x_prefs_cum <- x_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = cumsum) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "cum")
-x_prefs_cum
-
-x_prefs_ma <- x_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = ma7) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "ma7")
-x_prefs_ma  
-
-
-x_by_prefs <- x_prefs %>% 
-  dplyr::left_join(x_prefs_diff, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(x_prefs_cum, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(x_prefs_ma, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
-  dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
-  dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
-  dplyr::arrange(date)
-x_by_prefs
-```
-
 ```{r}
 x_by_prefs <- x %>% 
   dplyr::filter(!is.na(Pref)) %>% 
@@ -519,98 +348,10 @@ x_by_prefs
 
 　  
 
-### 日次集計（死亡者）
-
-#### 地域別
-```{r, include=FALSE, eval=FALSE}
-start <- df_s$prefectures %>% 
-、  dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
-  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
-  dplyr::arrange(pcode) %>% 
-  tidyr::drop_na(pcode) %>% 
-  dplyr::select(date, Pref = `都道府県`) %>% 
-  dplyr::distinct(date) %>% 
-  .$date
-
-start <- start %>% 
-  lubridate::as_date()
-
-start %>% str()
+## 日次集計（死亡者）
 
 
-df_s$prefectures %>% 
-  dplyr::select(deceased = dailyDeceasedCount, pref = name) %>% 
-  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
-  tidyr::drop_na(pcode) %>% 
-  
-```
-
-
-#### 都道府県別
-```{r, include=FALSE, eval=FALSE}
-start <- df_s$prefectures %>% 
-  dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
-  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
-  dplyr::arrange(pcode) %>% 
-  tidyr::drop_na(pcode) %>% 
-  dplyr::select(date, Pref = `都道府県`) %>% 
-  dplyr::distinct(date) %>% 
-  .$date %>% lubridate::as_date()
-
-
-d_prefs <- df_s$prefectures %>% 
-  dplyr::select(deceased = dailyDeceasedCount, pref = name) %>% 
-  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
-  tidyr::drop_na(pcode) %>% 
-  dplyr::select(Pref = `都道府県`, deceased) %>% 
-  tidyr::unnest(deceased) %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = deceased) %>% 
-  tidyr::unnest() %>% 
-  dplyr::mutate(date = seq.Date(from = start, to = start + nrow(.) - 1,
-                                by = "day")) %>% 
-  dplyr::select(date, dplyr::everything()) %>% 
-  tidyr::pivot_longer(col = -date, names_to = "Pref", values_to = "n")
-d_prefs
-
-d_prefs_diff <- d_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = lagdiff) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "diff")
-d_prefs_diff
-
-# 累計
-d_prefs_cum <- d_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = cumsum) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "cum")
-d_prefs_cum
-
-d_prefs_ma <- d_prefs %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n, values_fill = 0L) %>% 
-  dplyr::mutate_if(is.integer, .funs = ma7) %>% 
-  tidyr::pivot_longer(cols = -date, names_to = "Pref", values_to = "ma7")
-d_prefs_ma  
-
-
-d_by_prefs <- d_prefs %>% 
-  dplyr::left_join(d_prefs_diff, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(d_prefs_cum, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(d_prefs_ma, by = c("date" = "date", "Pref" = "Pref")) %>% 
-  dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
-  dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
-  dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
-  dplyr::arrange(date)
-d_by_prefs
-
-d_by_prefs %>% 
-  dplyr::select(date, Pref, n) %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = n) %>% 
-  dplyr::summarise_if(is.integer, .funs = sum) %>% 
-  tibble::rownames_to_column("id") %>% 
-  tidyr::pivot_longer(cols = -id, names_to = "Pref", values_to ="deceased") %>% 
-  dplyr::select(-id)
-```
-
+### 都道府県別
 ```{r}
 start <- df_s$prefectures %>% 
   dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
@@ -646,29 +387,32 @@ d_by_prefs <- df_s$prefectures %>%
 d_by_prefs
 ```
 
+### 地域別
+集計データ`$regions`は、合計が一致しないことがあったので、`$prefectures`のデータを元に計算する。
+```{r}
+d_by_region <- d_by_prefs %>% 
+  dplyr::select(date, pref = Pref, n) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "都道府県")) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::group_by(date, `八地方区分`) %>% 
+  dplyr::summarise(n = sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(region = `八地方区分`) %>% 
+  dplyr::group_by(region) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::arrange(date)
+d_by_region
+```
 
+　  
 
+# Visualize
 
-
-<!-- #### 死亡者数 -->
-<!-- 同様に死亡者の日次、前日比、累計を求めたいが、`patientStatus`を見る限り -->
-<!-- ```{r} -->
-<!-- x %>%  -->
-<!--   dplyr::filter(patientStatus == "Deceased") %>%  -->
-<!--   dplyr::group_by(deceasedDate) %>%  -->
-<!--   dplyr::summarise(dead = n()) %>%  -->
-<!--   dplyr::rename(date = deceasedDate) %>%  -->
-<!--   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"), -->
-<!--                   fill = list(dead = 0L)) %>%  -->
-<!--   dplyr::mutate(diff_dead = dead - dplyr::lag(dead, default = 0L), -->
-<!--                 cum_dead = cumsum(dead)) -->
-
-<!-- ``` -->
-
-
-<!-- 　   -->
-
-## Visualize
+## 陽性者
 
 ### 全国の日次推移
 ```{r}
@@ -851,7 +595,53 @@ x_by_prefs %>%
 
 　  
 
-### 都道府県別日次推移（死亡者数）
+## 死亡者
+
+### 地方別日次推移
+```{r}
+sec_scale <- 50
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+
+d_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = region),
+                       linetype = "solid", size = 0.2) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
+    ggplot2::facet_wrap(~ region, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "死亡者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積死亡者数（折線）")
+    )
+
+d_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = region),
+                       linetype = "solid", size = 0.2) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
+    ggplot2::facet_wrap(~ region, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "死亡者数（単日）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積死亡者数（折線）")
+    )
+```
+
+　  
+
+### 都道府県別日次推移
 ```{r, fig.height=15, fig.width=10}
 sec_scale <- 10
 ncol <- 5
@@ -894,7 +684,7 @@ d_by_prefs %>%
 ```
 
 
-
+## 相関
 
 ### 都道府県別
 ```{r}
@@ -949,13 +739,7 @@ x %>%
                   x = "推計人口[千人]", y = "累計陽性者数")
 ```
 
-
-
-
-
-
-
-
+　  
 
 <!-- ### クラスタ比率 -->
 <!-- ```{r} -->
@@ -971,136 +755,141 @@ x %>%
 <!-- ``` -->
 
 
+# Model
 
-<!-- # Modeling -->
 
-<!-- ## 時系列（TS）分析 -->
-<!-- 日毎の陽性判定者数を時系列データ形式に変換します。判定者数がゼロの日は報告されていないので、最初の陽性判定者が出た日から日日次のカレンダーデータを作成して結合してます。なお、時系列データ形式の周期については日次データなので7日間を周期として設定しておきます（考え方によっては約1ヶ月ごとで4週間=28日を周期にするのもありかと思います）。 -->
+## 時系列（TS）分析
+```{r}
+ts_tmp <- x_by_all %>% 
+  dplyr::select(n)
 
-<!-- ```{r} -->
-<!-- tmp <- x %>% -->
-<!--   dplyr::filter(!is.na(fct_pref)) %>%  -->
-<!--   dplyr::group_by(dateAnnounced) %>%  -->
-<!--   dplyr::summarise(n = n()) %>% print() %>%  -->
-<!--   dplyr::rename(date = dateAnnounced) %>%  -->
-<!--   tidyr::complete(date = seq.Date(min(date), max(date), by = "day"), -->
-<!--                   fill = list(n = 0L)) %>% print() %>%  -->
-<!--   # tidyr::replace_na(list(n = 0L)) %>% print() %>%  -->
-<!--   dplyr::select(-date) -->
+ts_day <- ts_tmp %>% 
+  ts(frequency = 1)
 
-<!-- ts_x <- tmp %>% -->
-<!--   ts(frequency = 1) -->
+ts_week <- ts_tmp %>% 
+  ts(frequency = 7)
 
-<!-- tsw_x <- tmp %>% -->
-<!--   ts(frequency = 7) -->
+ts_month <- ts_tmp %>% 
+  ts(frequency = 28)
+```
 
-<!-- tsm_x <- tmp %>% -->
-<!--   ts(frequency = 28) -->
-<!-- ``` -->
+時系列データに変換したものをプロットすると可視化の項でプロットした棒グラフと同じ形のグラフになることが分かります。
+```{r}
+ts_day %>% 
+  plot()
 
-<!-- ```{r, eval=FALSE} -->
-<!-- # ts_x <- x %>%  -->
-<!-- #   dplyr::filter(!is.na(fct_pref)) %>%  -->
-<!-- #   dplyr::group_by(dateAnnounced) %>%  -->
-<!-- #   dplyr::summarise(n = n()) %>%  -->
-<!-- #   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>%  -->
-<!-- #   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>%  -->
-<!-- #   dplyr::select(-date) %>% -->
-<!-- #   ts(frequency = 1) -->
-<!-- #    -->
-<!-- # tsw_x <- x %>%  -->
-<!-- #   dplyr::filter(!is.na(fct_pref)) %>%  -->
-<!-- #   dplyr::group_by(dateAnnounced) %>%  -->
-<!-- #   dplyr::summarise(n = n()) %>%  -->
-<!-- #   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>%  -->
-<!-- #   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>%  -->
-<!-- #   dplyr::select(-date) %>% -->
-<!-- #   ts(frequency = 7) -->
-<!-- #  -->
-<!-- # tsm_x <- x %>%  -->
-<!-- #   dplyr::filter(!is.na(fct_pref)) %>%  -->
-<!-- #   dplyr::group_by(dateAnnounced) %>%  -->
-<!-- #   dplyr::summarise(n = n()) %>%  -->
-<!-- #   dplyr::left_join(date, ., by = c("date" = "dateAnnounced")) %>%  -->
-<!-- #   dplyr::mutate(n = tidyr::replace_na(n, 0L)) %>%  -->
-<!-- #   dplyr::select(-date) %>% -->
-<!-- #   ts(frequency = 28) -->
-<!-- ``` -->
+ts_week %>% 
+  plot()
 
-<!-- 時系列データに変換したものをプロットすると可視化の項でプロットした棒グラフと同じ形のグラフになることが分かります。 -->
-<!-- ```{r} -->
-<!-- ts_x %>%  -->
-<!--   plot() -->
-<!-- tsw_x %>%  -->
-<!--   plot() -->
-<!-- tsm_x %>%  -->
-<!--   plot() -->
-<!-- ``` -->
+ts_month %>% 
+  plot()
+```
 
-<!-- 上記からトレンド（長期的傾向）を除いたグラフ。デフォルト指定なので`lag = 1` -->
-<!-- ```{r} -->
-<!-- ts_x %>%  -->
-<!--   base::diff() %>%  -->
-<!--   plot() -->
 
-<!-- tsw_x %>%  -->
-<!--   base::diff() %>%  -->
-<!--   plot() -->
+上記からトレンド（長期的傾向）を除いたグラフ。デフォルト指定なので`lag = 1`。つまり、前日差。
+```{r}
+ts_day %>% 
+  base::diff() %>% 
+  plot()
 
-<!-- tsm_x %>%  -->
-<!--   base::diff() %>%  -->
-<!--   plot() -->
-<!-- ``` -->
+ts_week %>% 
+  base::diff() %>% 
+  plot()
 
-<!-- トレンド、季節変動（周期変動）、非周期変動に分解した場合。`frequency = 1`では分解できない点に注意。 -->
-<!-- ```{r} -->
-<!-- tsw_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   plot() -->
+ts_month %>% 
+  base::diff() %>% 
+  plot()
+```
 
-<!-- tsm_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   plot() -->
-<!-- ``` -->
+トレンド、季節変動（周期変動）、非周期変動に分解した場合。`frequency = 1`では分解できない点に注意。
+```{r}
+ts_week %>% 
+  stats::decompose() %>% 
+  plot()
 
-<!-- トレンドだけを抜き出してみる。 -->
-<!-- ```{r} -->
-<!-- tsw_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   .$x %>%  -->
-<!--   plot(ylim = c(0, 1500)) -->
+ts_month %>% 
+  stats::decompose() %>% 
+  plot()
+```
 
-<!-- par(new = TRUE) -->
+トレンドだけを抜き出してみる。移動平均に酷似している。
+```{r}
+ts_week %>% 
+  stats::decompose() %>% 
+  .$x %>% 
+  plot(ylim = c(0, 1500))
 
-<!-- tsw_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   .$trend %>%  -->
-<!--   plot(ylim = c(0, 1500), col = "dark green", lwd = 3) -->
+par(new = TRUE)
 
-<!-- par(new = FALSE) -->
-<!-- ``` -->
+ts_week %>% 
+  stats::decompose() %>% 
+  .$trend %>% 
+  plot(ylim = c(0, 1500), col = "dark green", lwd = 3)
 
-<!-- ```{r} -->
-<!-- tsm_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   .$x %>%  -->
-<!--   plot(ylim = c(0, 1500)) -->
+```
 
-<!-- par(new = TRUE) -->
+```{r}
+ts_month %>% 
+  stats::decompose() %>% 
+  .$x %>% 
+  plot(ylim = c(0, 1500))
 
-<!-- tsm_x %>%  -->
-<!--   stats::decompose() %>%  -->
-<!--   .$trend %>%  -->
-<!--   plot(ylim = c(0, 1500), col = "blue", lwd = 3) -->
+par(new = TRUE)
 
-<!-- par(new = FALSE) -->
+ts_month %>% 
+  stats::decompose() %>% 
+  .$trend %>% 
+  plot(ylim = c(0, 1500), col = "dark green", lwd = 3)
 
-<!-- # tsm_x %>%  -->
-<!-- #   stats::decompose() %>%  -->
-<!-- #   .$trend %>%  -->
-<!-- #   plot() -->
-<!-- ``` -->
+```
 
+
+## 地方別時系列分析
+```{r}
+x_by_region %>% 
+  dplyr::select(region, n) %>% 
+  split(.$region) %>% 
+  purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
+  purrr::map2(., names(.),
+              function(.x, region) {
+                plot(.x, main = region)
+              } )
+```
+
+```{r, fig.height=10}
+oldpar <- par()
+par(mfrow=c(4, 2))
+x_by_region %>% 
+  dplyr::select(region, n) %>% 
+  split(.$region) %>% 
+  purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
+  purrr::map2(., names(.),
+              function(.x, region) {
+                plot(.x, main = region, ylim = c(0, max(.x)))
+                # plot(.x, main = region)
+                par(new = TRUE)
+                stats::decompose(.x) %>% 
+                  .$trend %>% 
+                  plot(ylim = c(0, max(.x)), col = "dark green", lwd = 2)
+                  # plot(col = "dark green", lwd = 2)
+              } )
+par(oldpar)
+```
+
+
+### 時系列予測
+```{r}
+x_by_region %>% 
+  dplyr::select(region, n) %>% 
+  split(.$region) %>% 
+  purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
+  purrr::map(., forecast::auto.arima) %>% 
+  purrr::map(., forecast::forecast) %>% 
+  purrr::map2(., names(.),
+              function(.x, region) {
+                plot(.x, main = region)
+              } )
+```
 
 <!-- スペクトル密度の推定。何を意味するのかよく分からない。 -->
 <!-- ```{r} -->
