@@ -388,7 +388,7 @@ d_by_prefs
 ```
 
 ### 地域別
-集計データ`$regions`は、合計が一致しないことがあったので、`$prefectures`のデータを元に計算する。
+集計データ`$regions`には死亡者数の日次データが存在しないため`$prefectures`のデータから計算する。
 ```{r}
 d_by_region <- d_by_prefs %>% 
   dplyr::select(date, pref = Pref, n) %>% 
@@ -406,6 +406,11 @@ d_by_region <- d_by_prefs %>%
   tidyr::unnest() %>% 
   dplyr::arrange(date)
 d_by_region
+```
+
+
+```{r}
+df_s$regions
 ```
 
 　  
