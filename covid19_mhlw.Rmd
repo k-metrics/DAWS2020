@@ -1,5 +1,5 @@
 ---
-title: "Covid19 Data in Japan"
+title: "厚生労働省オープンデータ"
 output:
   html_document:
     code_folding : hide
@@ -12,9 +12,25 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
 require(tidyverse)
 require(jsonlite)
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: MHLW Open Data"
 ```
 
 日本の新型コロナウィルスに関する情報が抱える大きな問題の一つに、ソースごとの値が微妙にことなっていることが挙げられる。原因は明白で、総元締めであるはずの厚生労働省が各自治からの患者データを集計せずに各自治体のプレスリリースやウェブサイトの数値を積上げたものを発表しているからである。  
@@ -75,17 +91,23 @@ PCR検査で陽性が確定した「陽性者数」のデータ。厚生労働�
 各データを扱いやすいように変換する。
 
 ### 陽性者数
-単日のデータなので累計データを求める。なお、記録漏れがあっても対処できるように日付の補完を行う。
+単日のデータなので暗黙の欠落は補完して、前日差、累計、移動平均を求める。
 ```{r}
 df_mhlw <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
   readr::read_csv() %>% 
   dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
   dplyr::mutate(n = as.integer(`PCR 検査陽性者数(単日)`),
-                cum = cumsum(n)) %>% 
-  dplyr::select(date, n, cum)
+                diff = lagdiff(n),
+                cum = cumsum(n),
+                ma7 = ma7(n)) %>% 
+  dplyr::select(date, n, diff, cum, ma7)
 
 df_mhlw
+```
+
+```{r, include=FALSE}
+datetime <- lubridate::as_date(max(df_mhlw$date), tz = "Japan")
 ```
 
 　  
@@ -98,8 +120,11 @@ dead_mhlw <- "https://www.mhlw.go.jp/content/death_total.csv" %>%
   dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
   dplyr::mutate(cum_dead = as.integer(`死亡者数`),
-                dead = cum_dead - dplyr::lag(cum_dead, default = 0)) %>% 
-  dplyr::select(date, dead, cum_dead)
+                dead = lagdiff(cum_dead),
+                diff_dead = lagdiff(dead),
+                ma7_dead = ma7(dead)) %>% 
+                # dead = cum_dead - dplyr::lag(cum_dead, default = 0)) %>% 
+  dplyr::select(date, dead, diff_dead, cum_dead, ma7_dead)
 
 dead_mhlw
 ```
@@ -113,8 +138,9 @@ patient_mhlw <- "https://www.mhlw.go.jp/content/cases_total.csv" %>%
   readr::read_csv() %>% 
   dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
-  dplyr::mutate(patient = as.integer(`入院治療を要する者`)) %>% 
-  dplyr::select(date, patient)
+  dplyr::mutate(patient = as.integer(`入院治療を要する者`),
+                diff_patient = lagdiff(patient)) %>% 
+  dplyr::select(date, patient, diff_patient)
 patient_mhlw
 ```
 
@@ -130,7 +156,9 @@ pcr_mhlw <- "https://www.mhlw.go.jp/content/pcr_tested_daily.csv" %>%
   dplyr::select(date, pcr) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
                   fill = list(pcr = 0L)) %>% 
-  dplyr::mutate(cum_pcr = cumsum(pcr))
+  dplyr::mutate(cum_pcr = cumsum(pcr),
+                diff_pcr = lagdiff(pcr),
+                ma7_pcr = ma7(pcr))
 pcr_mhlw
 ```
 
@@ -144,16 +172,15 @@ x_mhlw <- df_mhlw %>%
   dplyr::left_join(dead_mhlw, by = c("date")) %>% 
   dplyr::left_join(patient_mhlw, by = c("date")) %>% 
   dplyr::left_join(pcr_mhlw, by = c("date")) %>% 
-  tidyr::replace_na(replace = list(dead = 0L, cum_dead = 0L,
-                                   patient = 0L,
-                                   pcr = 0L, cum_pcr = 0L)) %>% 
-  dplyr::mutate(diff = n - dplyr::lag(n, default = 0L),
-                diff_dead = dead - dplyr::lag(dead, default = 0L),
-                diff_patient = patient - dplyr::lag(patient, default = 0L),
-                diff_pcr = pcr - dplyr::lag(pcr, default = 0L)) %>% 
-  dplyr::select(date, n, diff, cum,
-                patient, diff_patient,
-                dead, diff_dead, cum_dead, pcr, diff_pcr, cum_pcr)
+  dplyr::select(date, n, diff, cum, ma7, dead, patient, pcr) %>% 
+  tidyr::replace_na(list(dead = 0L, patient = 0L, pcr = 0L)) %>% 
+  dplyr::mutate(diff_dead = lagdiff(dead), cum_dead = cumsum(dead),
+                ma7_dead = ma7(dead), diff_patient = lagdiff(patient),
+                diff_pcr = lagdiff(pcr), cum_pcr = cumsum(pcr),
+                ma7_pcr = ma7(pcr)) %>% 
+  dplyr::select(date, n, diff, cum, ma7, patient, diff_patient,
+                dead, diff_dead, cum_dead, ma7_dead,
+                pcr, diff_pcr, cum_pcr, ma7_pcr)
 x_mhlw
 ```
 
@@ -164,17 +191,23 @@ x_mhlw
 ### 陽性者数の推移
 最近ではPCR検査の件数が大きく増えており、その感度が一説には約35%と言われていることからみても、陽性者数だけで議論することは意味がないと言われているが、まずは可視化する。
 ```{r}
-scale_axis <- 50
+scale_axis <- 100
 
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
-                      width = 1.0, alpha = 0.75) +
-    ggplot2::geom_line(ggplot2::aes(y = cum / scale_axis), colour = "dark green") +
+                      width = 1.0, alpha = 0.5) +
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
+                       colour = "dark green", size = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / scale_axis),
+                       colour = "dark green", size = 1.0) +
+    ggplot2::labs(title = paste0("全国の陽性者数推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（単日）",
+      name = "陽性者数・移動平均（破線）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                    name = "陽性者数累計（折線）")
+                                    name = "陽性者数累計（実線）")
     )
 ```
 
@@ -185,21 +218,24 @@ x_mhlw %>%
 ### 死亡者数の推移
 陽性者数の推移に変わり着目されているのが死亡者数の推移である。まずは、単純な死亡者数の推移。
 ```{r}
-scale_axis <- 20
+scale_axis <- 30
 
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = dead), stat = "identity",
-                      width = 1.0, alpha = 0.75) +
+                      width = 1.0, alpha = 0.5) +
+    ggplot2::geom_line(ggplot2::aes(y = ma7_dead), linetype = "dashed",
+                       colour = "dark green", size = 0.5) + 
     ggplot2::geom_line(ggplot2::aes(y = cum_dead / scale_axis),
-                       colour = "dark green") +
+                       colour = "dark green", size = 1.0) +
+    ggplot2::labs(title = paste0("全国の死亡者数推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "死者数（単日）",
+      name = "死亡者数",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                    name = "死者数累計（折線）")
+                                    name = "死亡者数累計（実線）")
     )
-
-plotly::ggplotly()
 ```
 4月22日に90名超の死亡者が出ているのは「令和2年4月21日公表分から、データソースを従来の厚生労働省が把握した個票を積み上げたものから、各自治体がウェブサイトで公表している数等を積み上げたものに変更した。」ことが原因と考えられる。
 
@@ -210,19 +246,18 @@ plotly::ggplotly()
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = patient), stat = "identity",
-                      width = 1.0, alpha = 0.75) +
-    ggplot2::labs(y = "要入院治療者数（集計）")
+                      width = 1.0, alpha = 0.5) +
+    ggplot2::labs(title = paste0("全国の要入院治療者数（集計） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "要入院治療者数")
 ```
 
 値が急激に変わっている部分が認められるので、前日比のデータをプロットしてみる。
 ```{r}
-gg_pcr <- x_mhlw %>% 
+x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_line(ggplot2::aes(y = diff_patient), colour = "dark green") +
     ggplot2::labs(y = "要入院治療者数（前日比）")
-
-gg_pcr %>% 
-  plotly::ggplotly()
 ```
 
 5月8日の時点で急激に値が変わっているのが分かる。これは、[オープンデータのページ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)に記載されているように「令和2年（2020年）5月8日公表分から、データソースを従来の厚生労働省が把握した個票を積み上げたものから、各自治体がウェブサイトで公表している数等を積み上げたものに変更した。」ためである。  
@@ -236,13 +271,18 @@ scale_axis <- 20
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = pcr), stat = "identity",
-                      width = 1.0, alpha = 0.75) + 
+                      width = 1.0, alpha = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7_pcr), colour = "dark green",
+                       linetype = "dashed", size = 0.2) + 
     ggplot2::geom_line(ggplot2::aes(y = cum_pcr / scale_axis),
-                       colour = "dark green") +
+                       colour = "dark green", size = 1.0) +
+    ggplot2::labs(title = paste0("全国のPC検査実施人数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "PCR検査実施人数（単日）",
+      name = "PCR検査実施人数・移動平均（破線）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                    name = "累積人数（折線）")
+                                    name = "累積人数（実線）")
     )
 
 ```
@@ -252,26 +292,30 @@ x_mhlw %>%
 ### 陽性者数 vs 検査人数
 検査人数が増えたから陽性者数も増えたと言われているが、本当なのか確認のためのプロットしてみる。
 ```{r}
-scale_axis <- 100
+scale_axis <- 50
 
 x_mhlw %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = n), colour = "dark green") + 
-    ggplot2::geom_line(ggplot2::aes(y = pcr / scale_axis), color = "dark blue") +
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      width = 1.0, alpha = 0.25, fill = "dark green") +
+    ggplot2::geom_bar(ggplot2::aes(y = pcr / scale_axis), stat = "identity",
+                      width = 1.0, alpha = 0.5, fill = "dark blue") +
+    ggplot2::labs(title = paste0("陽性者数と検査実施人数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（単日）",
+      name = "陽性者数（濃緑）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                   name = "検査人数（単日）")
+                                   name = "検査人数（濃紺）")
     )
 ```
 
-　  
 「令和2年9月29日より、福岡県における民間検査機関等での実施件数（過去行われたものも含む）を計上している。」ため異常値になっている9月29日のPCR検査実施人数のデータを削除しておく。そもそも、過去のデータを単日で積上げてしまうやり方は非常に疑問である。  
 傾向を把握しやすくするために両者とも7日間の移動平均も合わせてプロットする。
 　  
 
 ```{r}
-scale_axis <- 10
+scale_axis <- 50
 
 x_mhlw %>% 
   dplyr::filter(date != lubridate::as_date("2020-09-29")) %>% 
@@ -279,23 +323,29 @@ x_mhlw %>%
   dplyr::mutate(ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE),
                 pcr_ma = zoo::rollmeanr(pcr, k = 7L, na.pad = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = n), colour = "light green") + 
-    ggplot2::geom_line(ggplot2::aes(y = pcr / scale_axis), color = "light blue") +
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      width = 1.0, alpha = 0.25, fill = "dark green") +
+    ggplot2::geom_bar(ggplot2::aes(y = pcr / scale_axis), stat = "identity",
+                      width = 1.0, alpha = 0.5, fill = "dark blue") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark green") + 
     ggplot2::geom_line(ggplot2::aes(y = pcr_ma / scale_axis), color = "dark blue") +
+    ggplot2::labs(title = paste0("陽性者数と検査実施人数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（単日）濃緑：移動平均",
+      name = "陽性者数（濃緑）・同移動平均（実線）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                   name = "検査人数（単日）濃青：移動平均")
+                                   name = "検査人数（濃紺）・同移動平均（実践）")
     )
 ```
 
-このグラフから分かるように7月〜8月の検査人数の増加に伴い陽性者数も増加、その後の減少・横ばいに伴い陽性者数も減少・横ばいしていることが読み取れる。
+　  
+検査を増やしたから陽性者が増えているというより、陽性者が増えたから（濃厚接触者などの）検査が増えたという印象を受ける。
 
 　  
 
-### 陽性者数 vs 要入院治療者数
-```{r}
+<!-- ### 陽性者数 vs 要入院治療者数 -->
+```{r, include=FALSE, eval=FALSE}
 scale_axis <- 0.2
 
 x_mhlw %>% 
@@ -308,23 +358,25 @@ x_mhlw %>%
     ggplot2::geom_line(ggplot2::aes(y = patient / scale_axis), color = "light blue") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark green") + 
     ggplot2::geom_line(ggplot2::aes(y = patient_ma / scale_axis), color = "dark blue") +
+    ggplot2::labs(title = paste0("陽性者数と検査実施人数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（累計）濃緑：移動平均",
+      name = "陽性者数（濃緑）・移動平均",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
                                    name = "要入院治療者数（集計）濃青：移動平均")
     )
-plotly::ggplotly()
 ```
 
-　  
-陽性者数の急増に伴い要入院治療者数も杖ているが、9月以降の要入院治療者数は増えておらず10月以降は横ばい傾向にあることが分かる。つまり、陽性と判断されても入院治療を必要としない軽症もしくは無症状の割合が増えていると考えられる。
+<!-- 　   -->
+<!-- 陽性者数の急増に伴い要入院治療者数も杖ているが、9月以降の要入院治療者数は増えておらず10月以降は横ばい傾向にあることが分かる。つまり、陽性と判断されても入院治療を必要としない軽症もしくは無症状の割合が増えていると考えられる。 -->
 
-　  
+<!-- 　   -->
 
 ### 陽性者数 vs 死亡者数
 陽性者数の増加は検査人数の増加にほぼ比例していると見ることができるが、死者数のはどうであろうか？4月22日は異常値として除いておく。
 ```{r}
-scale_axis <- 0.1
+scale_axis <- (1/10)
 
 x_mhlw %>% 
   dplyr::filter(date != lubridate::as_date("2020-04-22")) %>%
@@ -332,21 +384,24 @@ x_mhlw %>%
   dplyr::mutate(ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE),
                 dead_ma = zoo::rollmeanr(dead, k = 7L, na.pad = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = n), colour = "light green") + 
-    ggplot2::geom_line(ggplot2::aes(y = dead / scale_axis), color = "light blue") +
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      width = 1.0, alpha = 0.25, fill = "dark green") +
+    ggplot2::geom_bar(ggplot2::aes(y = dead / scale_axis), stat = "identity",
+                      width = 1.0, alpha = 0.5, fill = "dark blue") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark green") + 
     ggplot2::geom_line(ggplot2::aes(y = dead_ma / scale_axis), color = "dark blue") +
+    ggplot2::labs(title = paste0("陽性者数と死亡者数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（単日）濃緑：移動平均",
+      name = "陽性者数（濃緑）・同移動平均（実線）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                   name = "死者数（単日）濃青：移動平均")
+                                   name = "死者数（濃紺）・同移動平均（実線）")
     )
-
-plotly::ggplotly()
 ```
 
 　  
-陽性者が増加してから3〜4週間ほど遅れて死亡者数が増える傾向が、4月と8月の陽性者数のピークからよも取れる。しかし、両ピークを比較すると8月のピーク時の方が陽性者数に対する死者数の割合が低くなっていると言える。
+陽性者が増加してから3〜4週間ほど遅れて死亡者数が増える傾向が、4月と8月の陽性者数のピークからよも取れる。しかし、両ピークを比較すると8月のピーク時の方が陽性者数に対する死者数の割合が低くなっている。
 
 　  
 
@@ -360,16 +415,19 @@ x_mhlw %>%
   dplyr::mutate(patient_ma = zoo::rollmeanr(patient, k = 7L, na.pad = TRUE),
                 dead_ma = zoo::rollmeanr(dead, k = 7L, na.pad = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = dead / scale_axis), stat = "identity",
+                      width = 1.0, alpha = 0.5, fill = "dark blue") +
     ggplot2::geom_line(ggplot2::aes(y = patient), colour = "light green") + 
-    ggplot2::geom_line(ggplot2::aes(y = dead / scale_axis), color = "light blue") +
     ggplot2::geom_line(ggplot2::aes(y = patient_ma), colour = "dark green") + 
     ggplot2::geom_line(ggplot2::aes(y = dead_ma / scale_axis), color = "dark blue") +
+    ggplot2::labs(title = paste0("要入院治療者数（集計）と死亡者数（単日）の推移 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "要入院治療者（集計）濃緑：移動平均",
+      name = "要入院治療者（淡緑）：同移動平均（濃緑）",
       sec.axis = ggplot2::sec_axis(~ . * scale_axis,
-                                   name = "死者数（単日）濃青：移動平均")
+                                   name = "死者数（濃青）・同移動平均（実線）")
     )
-plotly::ggplotly()
 ```
 
 　  

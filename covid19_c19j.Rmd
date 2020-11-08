@@ -1,5 +1,5 @@
 ---
-title: "Covid19, Japan"
+title: "Covid19Japan.com"
 output:
   html_document:
     code_folding : hide
@@ -13,7 +13,9 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
 require(tidyverse)
 require(jsonlite)
 
@@ -25,6 +27,11 @@ ma7 <- function(n) {
   zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
 }
 
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
 caption <- "Data Source: covid19japan.com"
 ```
 
@@ -89,10 +96,10 @@ dailyDeceasedCount       | 死亡者数                 | 単日
 dailyDeceasedStartDate   | 死亡者数のカウント開始日 | 区分により開始日が異なる
 dailyRecoveredCumulative | 快復者数                 | 累計
 dailyRecoveredStartDate  | 快復者数のカウント開始日 | 区分により開始日が異なる
-dailyActive              | 治療者数^*^              | 単日
+dailyActive              | 治療者数^1^              | 単日
 dailyActiveStartDate     | 治療者数のカウント開始日 | 区分により開始日が異なる
 
-^*^ 陽性者数から死亡者数と快復者数を引いた数値を治療者数としている
+^1^ 陽性者数から死亡者数と快復者数を引いた数値を治療者数としている
 
 　  
 
@@ -495,7 +502,7 @@ x_by_all %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
                        colour = "dark green", size = 1.0) +
     ggplot2::labs(title = paste0("全国の陽性者数推移（単日） @", datetime),
-                  caption = caption,
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") +
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（破線）",
@@ -507,7 +514,7 @@ x_by_all %>%
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_line(ggplot2::aes(y = diff), colour = "dark green", alpha = 0.5) + 
     ggplot2::labs(title = paste0("全国の陽性者数前日差 @", datetime),
-                  caption = caption, 
+                  subtitle = subtitle, caption = caption, 
                   x = "", y = "前日差")
 ```
 
@@ -693,7 +700,7 @@ d_by_all %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
                        colour = "dark green", size = 1.0) +
     ggplot2::labs(title = paste0("全国の死亡者数推移（単日） @", datetime),
-                  caption = caption,
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") +
     ggplot2::scale_y_continuous(
       name = "死亡者数・移動平均（破線）",
@@ -705,7 +712,7 @@ d_by_all %>%
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_line(ggplot2::aes(y = diff), colour = "dark green", alpha = 0.5) + 
     ggplot2::labs(title = paste0("全国の死亡者数前日差 @", datetime),
-                  caption = caption, 
+                  subtitle = subtitle, caption = caption, 
                   x = "", y = "前日差")
 ```
 
@@ -727,7 +734,8 @@ d_by_region %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
     ggplot2::facet_wrap(~ region, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "死亡者数・移動平均（細線）",
@@ -744,7 +752,8 @@ d_by_region %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
     ggplot2::facet_wrap(~ region, ncol = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "死亡者数・移動平均（細線）",
