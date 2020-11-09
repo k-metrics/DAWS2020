@@ -444,7 +444,7 @@ d_by_prefs
 
 　  
 
-### 地域別
+### 地方別
 集計データ`$regions`には死亡者数の日次データが存在しないため`$prefectures`のデータから計算する。
 ```{r}
 d_by_region <- d_by_prefs %>% 
@@ -463,6 +463,60 @@ d_by_region <- d_by_prefs %>%
   tidyr::unnest() %>% 
   dplyr::arrange(date)
 d_by_region
+```
+
+　  
+
+### 陽性者比率と死亡者比率
+```{r}
+rpd_by_all <- d_by_region %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_region, ., by = c("region")) %>% 
+  dplyr::select(region, positive = n, deceased = d, population) %>% 
+  dplyr::select(-region) %>% 
+  dplyr::summarise_all(sum) %>% 
+  dplyr::mutate(p_rate = round(positive / population, 2),
+                d_rate = round(deceased / positive, 2))
+
+rpd_by_all %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+```
+
+　  
+
+```{r}
+rpd_by_region <- d_by_region %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_region, ., by = c("region")) %>% 
+  dplyr::select(region, positive = n, deceased = d, population, p_rate = rate) %>% 
+  dplyr::mutate(d_rate = round(deceased / positive, 2))
+
+rpd_by_region %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+
+```
+
+　  
+
+```{r}
+rpd_by_prefs <- d_by_prefs %>% 
+  dplyr::group_by(Pref) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_prefs, ., by = "Pref") %>% 
+  dplyr::select(Pref, positive = n, deceased = d, population, p_rate = rate) %>% 
+  dplyr::mutate(d_rate = round(deceased / positive, 2)) 
+
+rpd_by_prefs %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+
 ```
 
 　  
@@ -721,7 +775,7 @@ d_by_all %>%
 ### 地方別
 ```{r}
 sec_scale <- 50
-ncol <- 5
+ncol <- 4
 datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
 
 
@@ -815,13 +869,17 @@ d_by_prefs %>%
 
 ### 全国
 ```{r}
-sec_scale <- (1 / 10)
+sec_scale <- (1 / 50)
 
 x_by_all %>% 
   dplyr::left_join(d_by_all, by = c("date")) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
-    ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
+    ggplot2::geom_bar(ggplot2::aes(y = n.x), stat = "identity",
+                      fill = "dark green", alpha = 0.25, width = 1.0) +
+    ggplot2::geom_bar(ggplot2::aes(y = n.y / sec_scale), stat = "identity",
+                      fill = "dark red", alpha = 0.25, width = 1.0) +
+    # ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
+    # ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
     ggplot2::labs(title = paste0("@", datetime), caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
@@ -836,13 +894,17 @@ x_by_all %>%
 ### 地方別
 ```{r}
 sec_scale <- (1 / 10)
-ncol <- 5
+ncol <- 4
 
 x_by_region %>% 
   dplyr::left_join(d_by_region, by = c("date" = "date", "region" = "region")) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
-    ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
+    ggplot2::geom_bar(ggplot2::aes(y = n.x), stat = "identity",
+                      fill = "dark green", alpha = 0.25, width = 1.0) +
+    ggplot2::geom_bar(ggplot2::aes(y = n.y / sec_scale), stat = "identity",
+                      fill = "dark red", alpha = 0.25, width = 1.0) +
+    # ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
+    # ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
     ggplot2::facet_wrap(~ region, ncol = ncol, scales = "free_y") + 
     ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
                   x = "", y = "") + 
@@ -867,8 +929,23 @@ r_by_region %>%
     ggplot2::geom_point(ggplot2::aes(colour = region)) + 
     ggrepel::geom_text_repel(ggplot2::aes(label = region, colour = region)) + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("@", datetime), caption = caption,
+    ggplot2::labs(title = paste0("推計人口と陽性者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "推計人口[千人]", y = "累計陽性者数")
+```
+
+　  
+
+```{r}
+rpd_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = positive, y = deceased)) + 
+    ggplot2::geom_point(ggplot2::aes(colour = region)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region, colour = region)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("陽性者数と死亡者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "陽性者数", y = "死亡者数")
+  
 ```
 
 　  
@@ -898,6 +975,35 @@ r_by_prefs %>%
     ggplot2::labs(title = paste0("累計陽性者数五千人未満 @", datetime),
                   caption = caption,
                   x = "推計人口[千人]", y = "累計陽性者数")
+```
+
+　  
+
+```{r}
+rpd_by_prefs %>% 
+  ggplot2::ggplot(ggplot2::aes(x = positive, y = deceased)) + 
+    ggplot2::geom_abline(slope = rpd_by_all$d_rate, intercept = 0, colour = "gray") +
+    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("陽性者数と死亡者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "陽性者数", y = "死亡者数")
+```
+
+　  
+
+```{r}
+rpd_by_prefs %>% 
+  dplyr::filter(positive < 1000) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = positive, y = deceased)) + 
+    ggplot2::geom_abline(slope = rpd_by_all$d_rate, intercept = 0, colour = "gray") +
+    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("陽性者数と死亡者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "陽性者数", y = "死亡者数")
 ```
 
 　  
