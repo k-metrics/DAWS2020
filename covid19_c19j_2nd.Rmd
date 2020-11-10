@@ -430,7 +430,7 @@ x_by_all %>%
 上表を可視化する。
 ```{r}
 sec_scale <- 100
-、
+
 x_by_all %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
@@ -500,6 +500,8 @@ x_by_region %>%
                   x = "", y = "陽性者数") 
 ```
 
+　  
+
 ```{r}
 x_by_region %>% 
   ggplot2::ggplot(ggplot2::aes(x = date, y = ma7, colour = region)) + 
@@ -537,22 +539,24 @@ x_by_region %>%
 地方単位で可視化。
 ```{r}
 sec_scale <- 50
+ncol <- 2
 
 x_by_region %>% 
+  dplyr::rename(key = region) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
                       alpha = 0.5, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = region),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
-    ggplot2::facet_wrap(~ region) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（細線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
+                                    name = "累計陽性者数（折線）")
     )
 ```
 
@@ -561,31 +565,31 @@ x_by_region %>%
 傾向が見えるように縦軸をフリースケールとする。
 ```{r}
 sec_scale <- 50
+ncol <- 2
 
 x_by_region %>% 
+  dplyr::rename(key = region) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
                       alpha = 0.5, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = region),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = region)) +
-    ggplot2::facet_wrap(~ region, scales = "free_y") + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol  = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（細線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
+                                    name = "累計陽性者数（折線）")
     )
 ```
 
 　  
 
-<!-- ここまで（2020/11/9） ------------------------------------------------ -->
-
 ### 都道府県別日次集計
-同様に都道府県別の集計を求める。
+同様に都道府県別の日次単位の陽性者数、前日差、累計、移動平均を求める。
 ```{r}
 x_by_prefs <- x %>% 
   dplyr::group_by(date, pref) %>% 
@@ -611,6 +615,59 @@ x_by_prefs %>%
                 `発表日` = date, `陽性者数` = n, `前日差` = diff,
                 `累計陽性者数` = cum, `移動平均（7日）` = ma7)
 ```
+
+　  
+
+上表を可視化する。
+```{r, fig.height=15, fig.width=10}
+sec_scale <- 100
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+x_by_prefs %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+```
+
+　  
+
+傾向が見えるように縦軸をフリースケールとする。
+```{r}
+x_by_prefs %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+  ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.35, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+```
+
+<!-- ここまで（2020/11/10） ------------------------------------------------ -->
+
 
 　  
 
