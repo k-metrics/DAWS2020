@@ -482,9 +482,16 @@ x_by_region <- x %>%
   dplyr::arrange(date)
 
 x_by_region %>% 
+  dplyr::filter(date == max(date)) %>% 
+  dplyr::mutate(ma7 = round(ma7, 1)) %>% 
   dplyr::select(`地方` = region,
                 `発表日` = date, `陽性者数` = n, `前日差` = diff,
-                `累計陽性者数` = cum, `移動平均（7日）` = ma7)
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
+
+x_by_region %>% 
+  dplyr::select(`地方` = region,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
 ```
 
 　  
@@ -496,7 +503,7 @@ x_by_region %>%
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
                       width = 1.0, alpha = 0.5) + 
     ggplot2::labs(title = paste0("【地方別】陽性者数の推移（単日） @", datetime),
-                  caption = caption, 
+                  subtitle = subtitle, caption = caption, 
                   x = "", y = "陽性者数") 
 ```
 
@@ -508,7 +515,7 @@ x_by_region %>%
     ggplot2::geom_line(size = 1) +
     ggplot2::theme(legend.position = 'none') +
     ggplot2::labs(title = paste0("【地方別】移動平均（7日） @", datetime),
-                  caption = caption,
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "陽性者数") + 
     ggrepel::geom_text_repel(ggplot2::aes(label = region),
                              data = subset(x_by_region, date == max(date)),
@@ -525,7 +532,7 @@ x_by_region %>%
     ggplot2::geom_line(size = 1) +
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("【地方別】累計陽性者数 @", datetime),
-                  caption = caption,
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "累計陽性者数") + 
     ggrepel::geom_text_repel(ggplot2::aes(label = region),
                              data = subset(x_by_region, date == max(date)),
@@ -551,7 +558,8 @@ x_by_region %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
     ggplot2::facet_wrap(~ key, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（点線）",
@@ -577,7 +585,8 @@ x_by_region %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
     ggplot2::facet_wrap(~ key, ncol  = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（破線）",
@@ -611,9 +620,17 @@ x_by_prefs <- x %>%
   dplyr::arrange(date)
 
 x_by_prefs %>% 
+  dplyr::filter(date == max(date)) %>% 
+  dplyr::mutate(ma7 = round(ma7, 1)) %>% 
   dplyr::select(`都道府県` = pref,
                 `発表日` = date, `陽性者数` = n, `前日差` = diff,
-                `累計陽性者数` = cum, `移動平均（7日）` = ma7)
+                `陽性者累計` = cum, `移動平均（7日）` = ma7) %>% 
+  DT::datatable()
+
+x_by_prefs %>% 
+  dplyr::select(`都道府県` = pref,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
 ```
 
 　  
@@ -634,7 +651,8 @@ x_by_prefs %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
     ggplot2::facet_wrap(~ key, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（細線）",
@@ -646,7 +664,7 @@ x_by_prefs %>%
 　  
 
 傾向が見えるように縦軸をフリースケールとする。
-```{r}
+```{r, fig.height=15, fig.width=10}
 x_by_prefs %>% 
   dplyr::rename(key = pref) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
@@ -657,7 +675,8 @@ x_by_prefs %>%
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
-    ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（細線）",
