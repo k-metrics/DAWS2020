@@ -874,7 +874,7 @@ d_by_prefs %>%
 
 ### 全国
 ```{r}
-sec_scale <- (1 / 50)
+sec_scale <- (1 / 10)
 
 x_by_all %>% 
   dplyr::left_join(d_by_all, by = c("date")) %>% 
@@ -883,14 +883,16 @@ x_by_all %>%
                       fill = "dark green", alpha = 0.25, width = 1.0) +
     ggplot2::geom_bar(ggplot2::aes(y = n.y / sec_scale), stat = "identity",
                       fill = "dark red", alpha = 0.25, width = 1.0) +
-    # ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
-    # ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7.x),
+                       colour = "dark green", linetype = "dashed") +
+    ggplot2::geom_line(ggplot2::aes(y = ma7.y / sec_scale),
+                       colour = "dark red", linetype = "dashed") +
     ggplot2::labs(title = paste0("@", datetime), caption = caption,
                   x = "", y = "") + 
     ggplot2::scale_y_continuous(
-      name = "陽性者数（濃緑）",
+      name = "陽性者数（濃緑）・移動平均（破線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "死亡者数（濃赤）")
+                                    name = "死亡者数（濃赤）・移動平均（破線）")
     )
 ```
 
@@ -899,7 +901,7 @@ x_by_all %>%
 ### 地方別
 ```{r}
 sec_scale <- (1 / 10)
-ncol <- 4
+ncol <- 2
 
 x_by_region %>% 
   dplyr::left_join(d_by_region, by = c("date" = "date", "region" = "region")) %>% 
@@ -908,8 +910,10 @@ x_by_region %>%
                       fill = "dark green", alpha = 0.25, width = 1.0) +
     ggplot2::geom_bar(ggplot2::aes(y = n.y / sec_scale), stat = "identity",
                       fill = "dark red", alpha = 0.25, width = 1.0) +
-    # ggplot2::geom_line(ggplot2::aes(y = n.x), colour = "dark green") + 
-    # ggplot2::geom_line(ggplot2::aes(y = n.y / sec_scale), colour = "dark red") + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7.x),
+                       colour = "dark green", linetype = "dashed", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = ma7.y / sec_scale),
+                       colour = "dark red", linetype = "dashed", size = 0.25) +
     ggplot2::facet_wrap(~ region, ncol = ncol, scales = "free_y") + 
     ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
                   x = "", y = "") + 

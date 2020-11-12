@@ -186,7 +186,7 @@ df %>%
 ```{r}
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
-                pref = detectedPrefecture, patientStatus, knownCluster,
+                pref = detectedprefecture, patientStatus, knownCluster,
                 confirmedPatient, charterFlightPassenger,
                 cruisePassengerDisembarked, ageBracket,
                 deceasedDate, deceasedReportedDate) %>% 
@@ -702,7 +702,7 @@ start <- df_s$prefectures %>%
   dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
   dplyr::arrange(pcode) %>% 
   tidyr::drop_na(pcode) %>% 
-  dplyr::select(date, Pref = `都道府県`) %>% 
+  dplyr::select(date, pref = `都道府県`) %>% 
   dplyr::distinct(date) %>% 
   .$date %>% lubridate::as_date()
 
@@ -710,23 +710,23 @@ d_by_prefs <- df_s$prefectures %>%
   dplyr::select(deceased = dailyDeceasedCount, pref = name) %>% 
   dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
   tidyr::drop_na(pcode) %>% 
-  dplyr::select(Pref = `都道府県`, deceased) %>% 
+  dplyr::select(pref = `都道府県`, deceased) %>% 
   tidyr::unnest(deceased) %>% 
-  tidyr::pivot_wider(names_from = Pref, values_from = deceased) %>% 
+  tidyr::pivot_wider(names_from = pref, values_from = deceased) %>% 
   tidyr::unnest() %>% 
   dplyr::mutate(date = seq.Date(from = start, to = start + nrow(.) - 1,
                                 by = "day")) %>% 
   dplyr::select(date, dplyr::everything()) %>% 
-  tidyr::pivot_longer(col = -date, names_to = "Pref", values_to = "n") %>% 
-  dplyr::group_by(Pref) %>% 
+  tidyr::pivot_longer(col = -date, names_to = "pref", values_to = "n") %>% 
+  dplyr::group_by(pref) %>% 
   tidyr::nest() %>% 
   dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
                 cum = purrr::map(data, ~ cumsum(.$n)),
                 ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
   tidyr::unnest() %>% 
-  dplyr::left_join(prefs, ., by = c("都道府県" = "Pref")) %>% 
-  dplyr::mutate(Pref = forcats::fct_inorder(`都道府県`)) %>% 
-  dplyr::select(date, Pref, n, diff, cum, ma7) %>% 
+  dplyr::left_join(prefs, ., by = c("都道府県" = "pref")) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(`都道府県`)) %>% 
+  dplyr::select(date, pref, n, diff, cum, ma7) %>% 
   dplyr::arrange(date)
 d_by_prefs
 ```
@@ -737,7 +737,7 @@ d_by_prefs
 集計データ`$regions`には死亡者数の日次データが存在しないため`$prefectures`のデータから計算する。
 ```{r}
 d_by_region <- d_by_prefs %>% 
-  dplyr::select(date, pref = Pref, n) %>% 
+  dplyr::select(date, pref = pref, n) %>% 
   dplyr::left_join(prefs, by = c("pref" = "都道府県")) %>% 
   tidyr::drop_na(pcode) %>% 
   dplyr::group_by(date, `八地方区分`) %>% 
@@ -795,10 +795,10 @@ rpd_by_region %>%
 
 ```{r}
 rpd_by_prefs <- d_by_prefs %>% 
-  dplyr::group_by(Pref) %>% 
+  dplyr::group_by(pref) %>% 
   dplyr::summarise(d = sum(n)) %>% 
-  dplyr::left_join(r_by_prefs, ., by = "Pref") %>% 
-  dplyr::select(Pref, positive = n, deceased = d, population, p_rate = rate) %>% 
+  dplyr::left_join(r_by_prefs, ., by = "pref") %>% 
+  dplyr::select(pref, positive = n, deceased = d, population, p_rate = rate) %>% 
   dplyr::mutate(d_rate = round(deceased / positive, 2)) 
 
 rpd_by_prefs %>% 
@@ -879,12 +879,12 @@ datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
 
 x_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = pref),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = pref)) +
+    ggplot2::facet_wrap(~ pref, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
                   x = "", y = "") + 
@@ -896,12 +896,12 @@ x_by_prefs %>%
 
 x_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-  ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+  ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.35, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = pref),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = pref)) +
+    ggplot2::facet_wrap(~ pref, ncol = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
                   x = "", y = "") + 
@@ -918,8 +918,8 @@ x_by_prefs %>%
 ```{r, fig.height=14, fig.width=10}
 x_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_line(ggplot2::aes(y = diff, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
+    ggplot2::geom_line(ggplot2::aes(y = diff, colour = pref)) +
+    ggplot2::facet_wrap(~ pref, ncol = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("陽性者数前日差, Free Y scale @", datetime),
                   x = "", y = "")
@@ -1018,12 +1018,12 @@ datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
 
 d_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.25, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = pref),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = pref)) +
+    ggplot2::facet_wrap(~ pref, ncol = ncol) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Fixed scale @", datetime), caption = caption,
                   x = "", y = "") + 
@@ -1035,12 +1035,12 @@ d_by_prefs %>%
 
 d_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-  ggplot2::geom_bar(ggplot2::aes(y = n, fill = Pref), stat = "identity",
+  ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.35, width = 1.0) + 
-    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = Pref),
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = pref),
                        linetype = "solid", size = 0.25) + 
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = Pref)) +
-    ggplot2::facet_wrap(~ Pref, ncol = ncol, scales = "free_y") + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = pref)) +
+    ggplot2::facet_wrap(~ pref, ncol = ncol, scales = "free_y") + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("Free Y scale @", datetime), caption = caption,
                   x = "", y = "") + 
@@ -1146,8 +1146,8 @@ rpd_by_region %>%
 r_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
     ggplot2::geom_abline(slope = 1, intercept = 0, colour = "gray") + 
-    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
-    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::geom_point(ggplot2::aes(colour = pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = pref, colour = pref)) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("@", datetime), caption = caption,
                   x = "推計人口[千人]", y = "累計陽性者数")
@@ -1160,8 +1160,8 @@ r_by_prefs %>%
   dplyr::filter(n < 5000) %>% 
   ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
     ggplot2::geom_abline(slope = 1, intercept = 0, colour = "gray") + 
-    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
-    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::geom_point(ggplot2::aes(colour = pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = pref, colour = pref)) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("累計陽性者数五千人未満 @", datetime),
                   caption = caption,
@@ -1174,8 +1174,8 @@ r_by_prefs %>%
 rpd_by_prefs %>% 
   ggplot2::ggplot(ggplot2::aes(x = positive, y = deceased)) + 
     ggplot2::geom_abline(slope = rpd_by_all$d_rate, intercept = 0, colour = "gray") +
-    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
-    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::geom_point(ggplot2::aes(colour = pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = pref, colour = pref)) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("陽性者数と死亡者数 @", datetime),
                   subtitle = subtitle, caption = caption,
@@ -1189,8 +1189,8 @@ rpd_by_prefs %>%
   dplyr::filter(positive < 1000) %>% 
   ggplot2::ggplot(ggplot2::aes(x = positive, y = deceased)) + 
     ggplot2::geom_abline(slope = rpd_by_all$d_rate, intercept = 0, colour = "gray") +
-    ggplot2::geom_point(ggplot2::aes(colour = Pref)) + 
-    ggrepel::geom_text_repel(ggplot2::aes(label = Pref, colour = Pref)) + 
+    ggplot2::geom_point(ggplot2::aes(colour = pref)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = pref, colour = pref)) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::labs(title = paste0("陽性者数と死亡者数 @", datetime),
                   subtitle = subtitle, caption = caption,
@@ -1283,8 +1283,8 @@ par(oldpar)
 
 ```{r}
 x_by_prefs %>% 
-  dplyr::select(Pref, n) %>% 
-  split(.$Pref) %>% 
+  dplyr::select(pref, n) %>% 
+  split(.$pref) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
   purrr::map2(., paste0(names(.), " @", datetime),
               function(.x, name) {
@@ -1337,8 +1337,8 @@ x_by_region %>%
 ### 都道府県別
 ```{r}
 x_by_prefs %>% 
-  dplyr::select(Pref, n) %>% 
-  split(.$Pref) %>% 
+  dplyr::select(pref, n) %>% 
+  split(.$pref) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
   purrr::map(., forecast::auto.arima) %>% 
   purrr::map(., forecast::forecast) %>% 
