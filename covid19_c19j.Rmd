@@ -36,7 +36,7 @@ caption <- "Data Source: covid19japan.com"
 ```
 
 
-[Covid19 Japan](covid19japan.com)が独自に収集している陽性者単位のデータ（個票データ）。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されており、データはJSON形式。「レコード数 $\neq$ 累計陽性者数」であることに注意。
+[Covid19 Japan](https://covid19japan.com)が独自に収集している陽性者単位のデータ（個票データ）。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されており、データはJSON形式。「レコード数 $\neq$ 累計陽性者数」であることに注意。
 
 　  
 
@@ -172,6 +172,7 @@ df %>%
 ## Tidy & Transform
 各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合することで、ベースとなるデータセットを作成する。
 ```{r}
+
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
                 pref = detectedPrefecture, patientStatus, knownCluster,
@@ -189,6 +190,10 @@ x <- df %>%
   dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
   dplyr::select(-`推計人口`) %>% 
   dplyr::rename(Pref = `都道府県`, region = `八地方区分`)
+
+# %>%
+#   dplyr::filter(date != dplyr::if_else(lubridate::hour(lubridate::now()) < 17L,
+#                                        max(date), max(date) + 1))
 
 x
 ```
