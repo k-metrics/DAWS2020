@@ -186,7 +186,7 @@ df %>%
 ```{r}
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
-                pref = detectedprefecture, patientStatus, knownCluster,
+                pref = detectedPrefecture, patientStatus, knownCluster,
                 confirmedPatient, charterFlightPassenger,
                 cruisePassengerDisembarked, ageBracket,
                 deceasedDate, deceasedReportedDate) %>% 
@@ -600,7 +600,7 @@ x_by_region %>%
 ### 都道府県別日次集計
 同様に都道府県別の日次単位の陽性者数、前日差、累計、移動平均を求める。
 ```{r}
-x_by_prefs <- x %>% 
+x_by_pref <- x %>% 
   dplyr::group_by(date, pref) %>% 
   dplyr::summarise(n = n()) %>% 
   dplyr::ungroup() %>% 
@@ -619,7 +619,7 @@ x_by_prefs <- x %>%
   dplyr::mutate(pref = forcats::fct_inorder(`都道府県`)) %>% 
   dplyr::arrange(date)
 
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::filter(date == max(date)) %>% 
   dplyr::mutate(ma7 = round(ma7, 1)) %>% 
   dplyr::select(`都道府県` = pref,
@@ -627,7 +627,7 @@ x_by_prefs %>%
                 `陽性者累計` = cum, `移動平均（7日）` = ma7) %>% 
   DT::datatable()
 
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::select(`都道府県` = pref,
                 `発表日` = date, `陽性者数` = n, `前日差` = diff,
                 `陽性者累計` = cum, `移動平均（7日）` = ma7)
@@ -641,7 +641,7 @@ sec_scale <- 100
 ncol <- 5
 datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
 
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::rename(key = pref) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
@@ -665,7 +665,7 @@ x_by_prefs %>%
 
 傾向が見えるように縦軸をフリースケールとする。
 ```{r, fig.height=15, fig.width=10}
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::rename(key = pref) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
   ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
@@ -797,7 +797,7 @@ rpd_by_region %>%
 rpd_by_prefs <- d_by_prefs %>% 
   dplyr::group_by(pref) %>% 
   dplyr::summarise(d = sum(n)) %>% 
-  dplyr::left_join(r_by_prefs, ., by = "pref") %>% 
+  dplyr::left_join(r_by_pref, ., by = "pref") %>% 
   dplyr::select(pref, positive = n, deceased = d, population, p_rate = rate) %>% 
   dplyr::mutate(d_rate = round(deceased / positive, 2)) 
 
@@ -877,7 +877,7 @@ ncol <- 5
 datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
 
 
-x_by_prefs %>% 
+x_by_pref %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.25, width = 1.0) + 
@@ -894,7 +894,7 @@ x_by_prefs %>%
                                     name = "累積陽性者数（折線）")
     )
 
-x_by_prefs %>% 
+x_by_pref %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
   ggplot2::geom_bar(ggplot2::aes(y = n, fill = pref), stat = "identity",
                       alpha = 0.35, width = 1.0) + 
@@ -916,7 +916,7 @@ x_by_prefs %>%
 
 #### 前日差
 ```{r, fig.height=14, fig.width=10}
-x_by_prefs %>% 
+x_by_pref %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_line(ggplot2::aes(y = diff, colour = pref)) +
     ggplot2::facet_wrap(~ pref, ncol = ncol, scales = "free_y") + 
@@ -1143,7 +1143,7 @@ rpd_by_region %>%
 
 ### 都道府県別
 ```{r}
-r_by_prefs %>% 
+r_by_pref %>% 
   ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
     ggplot2::geom_abline(slope = 1, intercept = 0, colour = "gray") + 
     ggplot2::geom_point(ggplot2::aes(colour = pref)) + 
@@ -1156,7 +1156,7 @@ r_by_prefs %>%
 　  
 
 ```{r}
-r_by_prefs %>% 
+r_by_pref %>% 
   dplyr::filter(n < 5000) %>% 
   ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
     ggplot2::geom_abline(slope = 1, intercept = 0, colour = "gray") + 
@@ -1282,7 +1282,7 @@ par(oldpar)
 ```
 
 ```{r}
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::select(pref, n) %>% 
   split(.$pref) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
@@ -1336,7 +1336,7 @@ x_by_region %>%
 
 ### 都道府県別
 ```{r}
-x_by_prefs %>% 
+x_by_pref %>% 
   dplyr::select(pref, n) %>% 
   split(.$pref) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
