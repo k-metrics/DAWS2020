@@ -1269,14 +1269,12 @@ x_by_region %>%
   split(.$region) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
   purrr::map2(., paste0(names(.), " @", datetime),
-              function(.x, name) {
-                plot(.x, main = name, ylim = c(0, max(.x)))
-                # plot(.x, main = region)
+              function(.x, .y) {
+                plot(.x, main = .y, ylim = c(0, max(.x)), col = "dark gray")
                 par(new = TRUE)
                 stats::decompose(.x) %>% 
                   .$trend %>% 
-                  plot(ylim = c(0, max(.x)), col = "dark green", lwd = 3)
-                  # plot(col = "dark green", lwd = 2)
+                  plot(ylim = c(0, max(.x)), col = "dark green", lwd = 2)
               } )
 par(oldpar)
 ```
@@ -1287,14 +1285,13 @@ x_by_pref %>%
   split(.$pref) %>% 
   purrr::map(., ~ ts(.$n, frequency = 7)) %>% 
   purrr::map2(., paste0(names(.), " @", datetime),
-              function(.x, name) {
-                plot(.x, main = name, ylim = c(0, max(.x)))
+              function(.x, .y) {
+                plot(.x, main = .y, ylim = c(0, max(.x)), col = "dark gray")
                 # plot(.x, main = region)
                 par(new = TRUE)
                 stats::decompose(.x) %>% 
                   .$trend %>% 
-                  plot(ylim = c(0, max(.x)), col = "dark green", lwd = 3)
-                  # plot(col = "dark green", lwd = 2)
+                  plot(ylim = c(0, max(.x)), col = "dark green", lwd = 2)
               } )
 ```
 
