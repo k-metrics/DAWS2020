@@ -28,6 +28,7 @@ here::here()
 データ                   | 区分 | 種別 | 形式 | 言語 | DL | 備考
 -------------------------|:----:|------|:----:|:----:|:--:|-----------------
 [厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) | 公開 | 集計 | CSV | 日本 | 可 | 集計データを個別ファイルで公開  
+[COVID-19 対策ダッシュボード](https://covid-19.nec-solutioninnovators.com/) | 公開 | 集計 | CSV | 日英 | 可 | NECソリューションイノベーター
 [Covid19 Japan](https://covid19japan.com/) | 公開 | [個票](https://www.stat.go.jp/koukou/howto/process/proc3_2.html)・集計 | JSON | 英語 | 可 | [GitHub](https://github.com/reustle/covid19japan-data)にて  
 [JAG Japan](https://gis.jag-japan.com/covid19jp/) | 公開 | [個票](https://www.stat.go.jp/koukou/howto/process/proc3_2.html) | CSV | 日本 | 可 | GIS処理用データ付き
 
@@ -55,6 +56,24 @@ PCR検査実施人数                | 当日と前日の累積人数の差を�
 退院又は治療解除となった者の数 | 
 死亡者数                       | 
 PCR検査の実施件数              | 暫定値であり後日変更される可能性あり
+
+
+
+## COVID-19 対策DB（公開／集計／非公式）
+NECソリューションイノベータによる[tableau](https://public.tableau.com/profile/nec.solution.innovators.ltd.#!/vizhome/COVID-19_15903749159280/sheet1)を使ったダッシュボード。
+
+```{r, message=FALSE}
+"https://covid-19.nec-solutioninnovators.com/download/japan_covid19.csv" %>% 
+  readr::read_csv(guess_max = 12500)
+```
+
+
+## COVID-19 対策ダッシュボードの注意点
+厚生労働省の報道資料をNECソリューションイノベータが加工し都道府県単位で集計したデータ。公表年月日と集計年月日があったりしますので列名には注意が必要です。データの処理コードは非公開。  
+
+エラーにはなりませんが、各列のデータ型を正しく推定するためには`readr::read_csv`関数で`guess_max = 12500`オプションを指定してください。  
+
+なお、ファイルのエンコーディングは`UTF-8 with BOM`（ExcelのUTF-8エンコーディングCSV形式）になっています。
 
 
 
@@ -119,7 +138,7 @@ Windows環境ではエラー回避のために下記の
 ### 集計データ
 安心の調理済み食材  
 　  
-調理済みなのでアレンジする余地があまりなく、いかに美味しそうに盛り付けるかがポイント。
+基本的には調理済みなのでアレンジする余地があまりなく、いかに美味しそうに盛り付けるかがポイント。ただし、バイヤーによっては下ごしらえのみの場合もありアレンジに余地があるものも。
 　  
 
 ### 個票データ

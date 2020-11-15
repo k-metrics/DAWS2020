@@ -146,7 +146,8 @@ prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676a
                 `都道府県` = forcats::fct_inorder(`都道府県`),
                 `八地方区分` = forcats::fct_inorder(`八地方区分`),
                 `広域圏` = forcats::fct_inorder(`広域圏`),
-                `通俗的区分` = forcats::fct_inorder(`通俗的区分`))
+                `通俗的区分` = forcats::fct_inorder(`通俗的区分`),
+                `推計人口` = as.integer(`推計人口`))
 
 prefs
 ```
@@ -154,6 +155,8 @@ prefs
 　  
 
 ## Others
+
+### 病床データ
 [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)のデータも用意しておく。
 ```{r}
 if (googlesheets4::gs4_has_token()) {
@@ -162,10 +165,26 @@ beds_by_pref <- "https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzT
   dplyr::arrange(dplyr::desc(`発表日`)) %>% 
   dplyr::distinct(`自治体名`, .keep_all = TRUE) %>% 
   dplyr::rename(pref = `自治体名`, beds = `新型コロナウイルス対策感染症病床数`,
-                date = `発表日`)
+                date = `発表日`) %>% 
+  dplyr::mutate(beds = as.integer(beds), date = lubridate::as_date(date))
 beds_by_pref
 }
 ```
+
+
+### COVID-19 対策ダッシュボード
+[NECソリューションイノベータ](https://covid-19.nec-solutioninnovators.com/)による都道府県単位の単日集計データ。治療に関する集計データが含まれている。ただし、項目によっては累積値（累計値）のものもある。
+```{r}
+"https://covid-19.nec-solutioninnovators.com/download/japan_covid19.csv" %>% 
+  readr::read_csv(guess_max = 12500) %>% 
+  dplyr::select(date = `公表_年月日`, pref = `都道府県名`,
+                confirmed = `PCR検査陽性者`, pcr = `PCR検査実施人数`,
+                `入院治療等を要する者`, `うち重症`, `退院又は療養解除となった者の数`,
+                `確認中`) %>% 
+  dplyr::mutate(date = lubridate::as_date(date)) %>% 
+  dplyr::mutate_if(is.numeric, .funs = as.integer)
+```
+
 
 　  
 
