@@ -185,7 +185,6 @@ beds_by_pref
   dplyr::mutate_if(is.numeric, .funs = as.integer)
 ```
 
-
 　  
 
 ## Summarize
@@ -706,10 +705,9 @@ x_by_pref %>%
 
 <!-- ここまで（2020/11/10） ------------------------------------------------ -->
 
-
 　  
 
-## 日次集計（死亡者）
+## 死亡者の日次集計
 
 　  
 
@@ -748,6 +746,33 @@ d_by_prefs <- df_s$prefectures %>%
   dplyr::select(date, pref, n, diff, cum, ma7) %>% 
   dplyr::arrange(date)
 d_by_prefs
+```
+
+
+```{r}
+sec_scale <- 100
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+d_by_prefs %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+   ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+
 ```
 
 　  
@@ -842,35 +867,13 @@ d_by_all
 
 　  
 
+
+
+
+
+
+
 # Visualize
-
-　  
-
-## 陽性者の日次推移
-
-　  
-
-### 全国
-
-　  
-
-### 地方別
-
-#### 陽性者数（単日）
-
-　  
-
-#### 移動平均
-
-　  
-
-#### 累積
-
-　  
-
-#### 単日＋累積
-
-
 
 #### 前日差
 ```{r}
