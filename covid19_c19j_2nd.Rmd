@@ -869,6 +869,17 @@ d_by_all
 
 ## 年代別
 ```{r}
+x_by_age <- x %>% 
+  dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
+                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0-9"))
+x_by_age
+```
+
+```{r}
 x %>% 
   dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
                 ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>%
@@ -894,22 +905,21 @@ x %>%
 ```{r}
 x %>% 
   dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
-                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5")),
-                ageBracket = forcats::fct_relevel(ageBracket, 
-                                                  "0", "10", "20", "30", "40",
-                                                  "50", "60", "70", "80", "90",
-                                                  "100")) %>%
+                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0")) %>%
   dplyr::group_by(region, ageBracket) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(region = forcats::fct_rev(region),
-                ageBracket = forcats::fct_rev(ageBracket)) %>% 
+  dplyr::mutate(region = forcats::fct_rev(region)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = region)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
                       position = "fill") + 
     ggplot2::scale_fill_brewer(palette = "Set3") + 
     ggplot2::scale_y_continuous(labels = scales::percent) + 
-    ggplot2::coord_flip() + 
-    ggplot2::labs(title = paste0("年代比 @", datetime),
+    ggplot2::coord_flip() +
+    ggplot2::labs(title = paste0("年代構成比 @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "")
 ```
@@ -917,23 +927,22 @@ x %>%
 ```{r}
 x %>% 
   dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
-                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5")),
-                ageBracket = forcats::fct_relevel(ageBracket, 
-                                                  "0", "10", "20", "30", "40",
-                                                  "50", "60", "70", "80", "90",
-                                                  "100")) %>%
+                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0")) %>%
   dplyr::filter(ageBracket != "Unknown") %>% 
   dplyr::group_by(region, ageBracket) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(region = forcats::fct_rev(region),
-                ageBracket = forcats::fct_rev(ageBracket)) %>% 
+  dplyr::mutate(region = forcats::fct_rev(region)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = region)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
                       position = "fill") + 
     ggplot2::scale_fill_brewer(palette = "Set3") + 
-    ggplot2::scale_y_continuous(labels = scales::percent) + 
+    ggplot2::scale_y_continuous(labels = scales::percent) +
     ggplot2::coord_flip() + 
-    ggplot2::labs(title = paste0("年代不明者をのぞく年代比 @", datetime),
+    ggplot2::labs(title = paste0("年齢不明者をのぞく年代構成比 @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "")
 ```
@@ -941,15 +950,14 @@ x %>%
 ```{r}
 x %>% 
   dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
-                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5")),
-                ageBracket = forcats::fct_relevel(ageBracket, 
-                                                  "0", "10", "20", "30", "40",
-                                                  "50", "60", "70", "80", "90",
-                                                  "100")) %>%
+                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0")) %>%
   dplyr::group_by(region, ageBracket, cluster) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(region = forcats::fct_rev(region),
-                ageBracket = forcats::fct_rev(ageBracket)) %>% 
+  dplyr::mutate(region = forcats::fct_rev(region)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = region)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
                       position = "fill") + 
@@ -957,7 +965,7 @@ x %>%
     ggplot2::scale_fill_brewer(palette = "Set3") + 
     ggplot2::scale_y_continuous(labels = scales::percent) + 
     ggplot2::coord_flip() + 
-    ggplot2::labs(title = paste0("年代比 @", datetime),
+    ggplot2::labs(title = paste0("非クラスタ/クラスタでの年代構成比 @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "")
 ```
@@ -965,16 +973,15 @@ x %>%
 ```{r}
 x %>% 
   dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
-                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5")),
-                ageBracket = forcats::fct_relevel(ageBracket, 
-                                                  "0", "10", "20", "30", "40",
-                                                  "50", "60", "70", "80", "90",
-                                                  "100")) %>%
+                ageBracket = forcats::fct_collapse(ageBracket, `0` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0")) %>%
   dplyr::filter(ageBracket != "Unknown") %>% 
   dplyr::group_by(region, ageBracket, cluster) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::mutate(region = forcats::fct_rev(region),
-                ageBracket = forcats::fct_rev(ageBracket)) %>% 
+  dplyr::mutate(region = forcats::fct_rev(region)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = region)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
                       position = "fill") + 
@@ -982,10 +989,76 @@ x %>%
     ggplot2::scale_fill_brewer(palette = "Set3") + 
     ggplot2::scale_y_continuous(labels = scales::percent) + 
     ggplot2::coord_flip() + 
-    ggplot2::labs(title = paste0("年代不明者をのぞく年代比 @", datetime),
+    ggplot2::labs(title = paste0("年齢不明者をのぞく非クラスタ/クラスタでの年代構成比 @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "")
 ```
+
+
+### 都道府県別
+```{r, fig.height=10}
+g_age_by_pref <- x %>% 
+  dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
+                ageBracket = forcats::fct_collapse(ageBracket, `0-9` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0-9")) %>%
+  dplyr::group_by(pref, ageBracket, cluster) %>%
+  # dplyr::group_by(pref, ageBracket) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(pref = forcats::fct_rev(pref)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = pref)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
+                      position = "fill") +
+    # ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity") + 
+    ggplot2::scale_fill_brewer(palette = "Set3") + 
+    ggplot2::scale_y_continuous(labels = scales::percent) + 
+    ggplot2::coord_flip() + 
+    ggplot2::geom_hline(yintercept = c(0.25, 0.5, 0.75), size = 0.35,
+                        colour = "dark gray") + 
+    ggplot2::labs(title = paste0("年代構成比 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "")
+
+g_age_by_pref
+
+g_age_by_pref + 
+  ggplot2::facet_grid(~ cluster)
+```
+
+
+```{r, fig.height=10}
+g_age_by_pref_wo <- x %>% 
+  dplyr::mutate(ageBracket = forcats::fct_recode(ageBracket, Unknown = "-1"),
+                ageBracket = forcats::fct_collapse(ageBracket, `0-9` = c("0", "5"))) %>% 
+  dplyr::mutate(ageBracket = forcats::fct_relevel(ageBracket, 
+                                                  "100", "90", "80", "70", "60",
+                                                  "50", "40", "30", "20", "10",
+                                                  "0-9")) %>%
+  dplyr::filter(ageBracket != "Unknown") %>% 
+  dplyr::group_by(pref, ageBracket, cluster) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(pref = forcats::fct_rev(pref)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = pref)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = ageBracket), stat = "identity",
+                      position = "fill") + 
+    ggplot2::scale_fill_brewer(palette = "Set3") + 
+    ggplot2::scale_y_continuous(labels = scales::percent) + 
+    ggplot2::coord_flip() + 
+    ggplot2::geom_hline(yintercept = c(0.25, 0.5, 0.75), size = 0.35,
+                        colour = "dark gray") + 
+    ggplot2::labs(title = paste0("年齢不明者をのぞく年代構成比 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "")
+
+g_age_by_pref_wo
+
+g_age_by_pref_wo + 
+  ggplot2::facet_grid(~ cluster) + 
+  ggplot2::labs(title = paste0("年齢不明者をのぞく非クラスタ/クラスタでの年代構成比 @", datetime))
+```
+
 
 
 # Visualize
