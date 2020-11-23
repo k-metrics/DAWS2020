@@ -171,8 +171,9 @@ beds_by_pref
 }
 ```
 
+　  
 
-### COVID-19 対策ダッシュボード
+### 対策ダッシュボード
 [NECソリューションイノベータ](https://covid-19.nec-solutioninnovators.com/)による都道府県単位の単日集計データ。治療に関する集計データが含まれている。ただし、項目によっては累積値（累計値）のものもある。
 ```{r}
 "https://covid-19.nec-solutioninnovators.com/download/japan_covid19.csv" %>% 
@@ -183,6 +184,17 @@ beds_by_pref
                 `確認中`) %>% 
   dplyr::mutate(date = lubridate::as_date(date)) %>% 
   dplyr::mutate_if(is.numeric, .funs = as.integer)
+```
+
+　  
+
+### 新型コロナ関連ニュース
+新型コロナ関連のニュース
+```{r}
+news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/4c971a6cde2033e458525b793e832c4a87cbae2d/covid19_news.csv" %>% 
+    readr::read_csv() %>% 
+  dplyr::filter(area == "日本")
+news
 ```
 
 　  
@@ -449,10 +461,20 @@ x_by_all %>%
 ```{r}
 sec_scale <- 100
 
+emergency <- news %>% 
+  dplyr::filter(category == "緊急事態")
+
+goto <- news %>% 
+  dplyr::filter(category == "GoTo")
+
 x_by_all %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+    #                     colour = "dark blue", linetype = "dashed", size = 0.15) + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = goto,
+                        colour = "magenta", linetype = "dashed", size = 0.15) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
-                      alpha = 0.5) + 
+                      fill = "dark gray", alpha = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
                        colour = "dark green", size = 0.5) + 
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
@@ -460,6 +482,10 @@ x_by_all %>%
     ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "") +
+    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
+    #                           label.size = 0.05, data = emergency) + 
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
+                              label.size = 0.05, data = goto, colour = "magenta") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（破線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
@@ -1058,6 +1084,9 @@ g_age_by_pref_wo +
   ggplot2::facet_grid(~ cluster) + 
   ggplot2::labs(title = paste0("年齢不明者をのぞく非クラスタ/クラスタでの年代構成比 @", datetime))
 ```
+
+　  
+
 
 
 
