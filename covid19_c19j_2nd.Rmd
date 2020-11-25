@@ -459,6 +459,12 @@ x_by_all %>%
 
 上表を可視化する。
 ```{r}
+# 祝日ファイルは以下をダウンロードしておく（SSLがエラーになるので自動処理できない）
+# "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv"
+
+# 祝日判定関数
+source("https://raw.githubusercontent.com/logics-of-blue/website/master/010_forecast/20190714_R%E8%A8%80%E8%AA%9E%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E6%97%A5%E6%9C%AC%E3%81%AE%E7%A5%9D%E6%97%A5%E5%88%A4%E5%AE%9A/jholiday.R", encoding="utf-8")
+
 sec_scale <- 100
 
 emergency <- news %>% 
@@ -468,11 +474,18 @@ goto <- news %>%
   dplyr::filter(category == "GoTo")
 
 x_by_all %>% 
+  dplyr::mutate(hday = is.jholiday(target_date = date,
+                                   holiday_source = "./Covid19/syukujitsu.csv"),
+                wday = lubridate::wday(date, week_start = 1),
+                wday = dplyr::if_else(wday > 5, TRUE, FALSE),
+                wday = dplyr::if_else(hday | wday, 3000L,  NA_integer_)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
-    #                     colour = "dark blue", linetype = "dashed", size = 0.15) + 
+    ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
+                      fill = "red", alpha = 0.1) + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+                        colour = "dark blue", linetype = "dashed", size = 0.15) +
     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = goto,
-                        colour = "magenta", linetype = "dashed", size = 0.15) + 
+                        colour = "magenta", linetype = "dashed", size = 0.25) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
                       fill = "dark gray", alpha = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
@@ -482,10 +495,10 @@ x_by_all %>%
     ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "") +
-    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
-    #                           label.size = 0.05, data = emergency) + 
     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
-                              label.size = 0.05, data = goto, colour = "magenta") + 
+                              size = 2.0, data = emergency) +
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2250, label = news),
+                              size = 2.5, data = goto, colour = "magenta") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（破線）",
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
