@@ -87,6 +87,14 @@ PCR検査で陽性が確定した「陽性者数」のデータ。厚生労働�
 
 　  
 
+### 重症者数
+```{r}
+"https://www.mhlw.go.jp/content/severe_daily.csv" %>% 
+  readr::read_csv()
+```
+
+　  
+
 ## Wrangle (tidy and transform)
 各データを扱いやすいように変換する。
 
@@ -163,6 +171,22 @@ pcr_mhlw
 ```
 
 
+### 重症者数
+```{r}
+si_mhlw <- "https://www.mhlw.go.jp/content/severe_daily.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`),
+                si = as.integer(`重症者数`)) %>% 
+  dplyr::select(date, si) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
+                  fill = list(si = 0L)) %>% 
+  dplyr::mutate(cum_si = cumsum(si),
+                diff_si = lagdiff(si),
+                ma7_si = ma7(si))
+
+si_mhlw
+```
+
 　  
 
 ### 結合
@@ -172,15 +196,18 @@ x_mhlw <- df_mhlw %>%
   dplyr::left_join(dead_mhlw, by = c("date")) %>% 
   dplyr::left_join(patient_mhlw, by = c("date")) %>% 
   dplyr::left_join(pcr_mhlw, by = c("date")) %>% 
-  dplyr::select(date, n, diff, cum, ma7, dead, patient, pcr) %>% 
-  tidyr::replace_na(list(dead = 0L, patient = 0L, pcr = 0L)) %>% 
+  dplyr::left_join(si_mhlw, by = c("date")) %>% 
+  dplyr::select(date, n, diff, cum, ma7, dead, patient, pcr, si) %>% 
+  tidyr::replace_na(list(dead = 0L, patient = 0L, pcr = 0L, si = 0L)) %>% 
   dplyr::mutate(diff_dead = lagdiff(dead), cum_dead = cumsum(dead),
                 ma7_dead = ma7(dead), diff_patient = lagdiff(patient),
                 diff_pcr = lagdiff(pcr), cum_pcr = cumsum(pcr),
-                ma7_pcr = ma7(pcr)) %>% 
+                ma7_pcr = ma7(pcr),
+                diff_si = lagdiff(si), cum_si = cumsum(si),
+                ma7_si = ma7(si)) %>% 
   dplyr::select(date, n, diff, cum, ma7, patient, diff_patient,
                 dead, diff_dead, cum_dead, ma7_dead,
-                pcr, diff_pcr, cum_pcr, ma7_pcr)
+                pcr, diff_pcr, cum_pcr, ma7_pcr, si, diff_si, cum_si, ma7_si)
 x_mhlw
 ```
 
@@ -286,6 +313,31 @@ x_mhlw %>%
     )
 
 ```
+
+
+### 重症者数の推移
+```{r}
+scale_axis <- 100
+
+x_mhlw %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = si), stat = "identity",
+                      fill = "dark gray", width = 1.0, alpha = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7_si), colour = "dark green",
+                       linetype = "dashed", size = 0.2) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum_si / scale_axis),
+                       colour = "dark green", size = 1.0) +
+    ggplot2::labs(title = paste0("全国の重症者数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "重症者数・同移動平均（破線）",
+      sec.axis = ggplot2::sec_axis(~ . * scale_axis,
+                                    name = "累計重症者数（実線）")
+    )
+
+```
+
 
 　  
 

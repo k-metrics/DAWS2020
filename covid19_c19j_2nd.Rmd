@@ -747,7 +747,7 @@ x_by_pref %>%
 　  
 
 ## 死亡者の日次集計
-
+厚生労働省のデータと乖離がある。
 　  
 
 ### 都道府県別
@@ -902,6 +902,30 @@ d_by_all <- d_by_prefs %>%
   dplyr::ungroup() %>% 
   dplyr::mutate(diff = lagdiff(n), cum = cumsum(n), ma7 = ma7(n))
 d_by_all
+```
+
+
+```{r}
+sec_scale <- 50
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+d_by_all %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+   ggplot2::geom_bar(ggplot2::aes(y = n), fill = "dark gray", stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), colour = "dark green",
+                       linetype = "dashed", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "死亡者数・同移動平均（破線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計死亡者数（実線）")
+    )
+
 ```
 
 　  
