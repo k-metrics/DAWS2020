@@ -1,5 +1,5 @@
 ---
-title: "分析大会用データについて"
+title: "分析大会について"
 subtitle: "CC 4.0 BY-SA-NC, Sampo Suzuki"
 output: 
   ioslides_presentation:
@@ -21,23 +21,47 @@ here::here()
 ```
 
 
-## 分析大会用データ
-新型コロナウィルスに関するデータです。すべてオンラインで最新データが取得できます。
+## 分析大会概要
+新型コロナウィルスに関する二種類のデータ（集計データ、個票データ）を用いて今年度の勉強会で学んできたデータラングリングと可視化を行います。分析に利用する環境は限定しません。  
 
+### 集計データによる分析
+まずは[厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)を用いて、日頃、ニュースなどで目にするグラフを作成してみます。  
+
+### 個票データによる分析
+[Covid19 Japan](https://covid19japan.com/)のデータを用いて、集計データでは分からない傾向などを見るためのグラフを作成してみます。どのような傾向を見るかは後述のチーム単位で決めます。  
+
+
+
+## 実施概要
+分析大会は1月回と2月回の2回に渡り実施しますので、基本的に両回への参加をお願いします。
+
+### 日程
+1. 集計データを用いた可視化（1月回の午前）
+1. 個票データを用いた分析（1月回の午後ならびに2月回の午前）
+1. 発表会（2月回の午後）
+
+### チーム単位での実施
+分からないことや方針などを相談しながら進められるようにするために数人単位のチーム分けを行います。各チームには「ファシリテーター（支援者）」としてのリーダを配置しますが、意思決定は基本的にメンバー間で行ってください。なお、勉強会の時間外で任意に打ち合わせなどを行うことは自由です。
+
+
+
+## 分析大会用データ
+新型コロナウィルスに関するデータは以下の二つを用います。どちらもオンラインで直接取得することが可能です。
 
 データ                   | 区分 | 種別 | 形式 | 言語 | DL | 備考
 -------------------------|:----:|------|:----:|:----:|:--:|-----------------
 [厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) | 公開 | 集計 | CSV | 日本 | 可 | 集計データを個別ファイルで公開  
-[COVID-19 対策ダッシュボード](https://covid-19.nec-solutioninnovators.com/) | 公開 | 集計 | CSV | 日英 | 可 | NECソリューションイノベーター
 [Covid19 Japan](https://covid19japan.com/) | 公開 | [個票](https://www.stat.go.jp/koukou/howto/process/proc3_2.html)・集計 | JSON | 英語 | 可 | [GitHub](https://github.com/reustle/covid19japan-data)にて  
-[JAG Japan](https://gis.jag-japan.com/covid19jp/) | 公開 | [個票](https://www.stat.go.jp/koukou/howto/process/proc3_2.html) | CSV | 日本 | 可 | GIS処理用データ付き
+
+　  
+取得タイミングによってはデータがそろっていない場合もありますので、適宜、フィルタリングしてください。なお、[Covid19 Japan](https://covid19japan.com/)には集計データもありますが、少し厄介な形式なのでチャレンジしてみたい方のみとします。
 
 
 
-# データ概略
+# データの概略
 
 ## 厚生労働省オープンデータ（公開／集計／公式）
-日本の公式データ。国内事例（チャーター便、空港検疫などを除く）の各報告日時点の集計値。
+日本国の公式データ。国内事例（チャーター便、空港検疫などを除く）の各報告日時点の集計値。基本的に前日までのデータとなります。
 
 ```{r, message=FALSE}
 "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
@@ -46,7 +70,7 @@ here::here()
 
 
 ## 厚生労働省オープンデータの注意点
-厚生労働省のデータはファイルにより単日であったり集計値であったりしますので、サイトの注意書きをよく読んでください。
+厚生労働省のデータはサイトの注意書きをよく読んでください。
 
 データ                         | 特記
 -------------------------------|-----------------------------------------------
@@ -56,24 +80,7 @@ PCR検査実施人数                | 当日と前日の累積人数の差を�
 退院又は治療解除となった者の数 | 
 死亡者数                       | 
 PCR検査の実施件数              | 暫定値であり後日変更される可能性あり
-
-
-
-## COVID-19 対策DB（公開／集計／非公式）
-NECソリューションイノベータによる[tableau](https://public.tableau.com/profile/nec.solution.innovators.ltd.#!/vizhome/COVID-19_15903749159280/sheet1)を使ったダッシュボード。
-
-```{r, message=FALSE}
-"https://covid-19.nec-solutioninnovators.com/download/japan_covid19.csv" %>% 
-  readr::read_csv(guess_max = 12500)
-```
-
-
-## COVID-19 対策ダッシュボードの注意点
-厚生労働省の報道資料をNECソリューションイノベータが加工し都道府県単位で集計したデータ。公表年月日と集計年月日があったりしますので列名には注意が必要です。データの処理コードは非公開。  
-
-エラーにはなりませんが、各列のデータ型を正しく推定するためには`readr::read_csv`関数で`guess_max = 12500`オプションを指定してください。  
-
-なお、ファイルのエンコーディングは`UTF-8 with BOM`（ExcelのUTF-8エンコーディングCSV形式）になっています。
+重症者数                       | 
 
 
 
@@ -93,12 +100,13 @@ path %>%
 
 
 ## Covid19 Japan データの注意点
-[GitHub](https://github.com/reustle/covid19japan-data) から`jsonlite`パッケージを利用して読み込んでください。
+読み込むには`jsonlite`パッケージを利用して以下のコードで読み込んでください。データは[Covid19 Japan](https://covid19japan.com/)のサイトでなく[GitHub](https://github.com/reustle/covid19japan-data)で公開されています。
 
 ```{r, echo=TRUE, eval=FALSE}
+library(tidyverse)
 library(jsonlite)
-path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
-path <- paste0(path, "docs/patient_data/")
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
+  paste0("docs/patient_data/")
 
 path %>% 
   paste0("latest.json") %>% 
@@ -107,31 +115,11 @@ path %>%
   jsonlite::fromJSON()
 ```
 
-個票データへのパスは表示の都合上、分割しています。  
-各列（変量、フィーチャー）の定義は[こちら](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md)。
+個票データへのパスは表示の都合上、分割しています。各列（変量、フィーチャー）の定義は[こちら](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md)。
 
 
 
-## JAG Japan （公開／個票／非公式）
-ジャッグジャパンがArcGISプロモーションマップ公開のために作成しているデータを副次的にCSV形式で公開している個票データ。
-
-```{r, message=FALSE, warning=FALSE, error=FALSE}
-"https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
-  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
-```
-
-
-## JAG Japan データの注意点
-副次的な公開データなので色々な事情がある模様。特徴的なのはW列（23列）目以降にGIS処理用の変量（フィーチャー）が用意されている点です。これらの変量は分析には必要ありません。  
-   
-Windows環境ではエラー回避のために下記の
-`guess_max`オプションを指定してください。なお、指定してもGIS関連データの部分でワーニングが出ます。
-```{r, echo=TRUE, eval=FALSE}
-  readr::read_csv(locale = readr::locale(encoding = "UTF-8"), guess_max = 5000)
-```
-
-各列（変量、フィーチャー）の定義は [こちら](https://jag-japan.com/covid19map-readme/)。
-
+# 各データの特徴と注意点
 
 ## データを食材に例えると
 
@@ -144,7 +132,8 @@ Windows環境ではエラー回避のために下記の
 ### 個票データ
 バイヤー厳選食材セット  
 　  
-バイヤーによって食材の産地や種類、収穫方法や品質が異なり、中には調理が厄介な食材が含まれることも。ただ、食材を追加したり調理方法を選ぶことができるので腕を振るえる。
+バイヤーによって食材の産地や種類、収穫方法・時期や品質が異なり、中には調理が厄介な食材が含まれることも。ただ、食材を追加したり調理方法を選ぶことができるので腕を振るえる。
+
 
 
 ## データを扱う上でポイント
@@ -156,7 +145,8 @@ Windows環境ではエラー回避のために下記の
     * Warningなどが表示された場合は必ず読んで、確認してください
 * 読み込んだデータは各列（変量）のデータ型を必ず確認
     * 特に文字（chr）型になっている変量には注意してください
-* 本資料のコードがGoogle Colabで動作することは確認済
+* 本資料でのコードはGoogle Colabで動作することを確認済
+
 
 
 ## 分析を行う際の注意点
@@ -165,10 +155,11 @@ Windows環境ではエラー回避のために下記の
 * 個票データを扱う場合は、各列（変量）の持つ意味をよく確認
     * 個票データは非公式のデータなので、作成者により表記等が変わります
 * データがよく分からない場合はCSVファイルに書き出して眺める
-    * `readr::write_excel_csv(df, filepath)` で書き出せます
-* 都道府県の地方区分などのデータは [こちら](https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv)で公開中
-    * Wikipediaと総務省統計局の情報を元に作成してあります
+    * データフレームは`readr::write_excel_csv(df, filepath)` で書き出せます
+* 都道府県の地方区分などのデータは [こちら](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)で公開中
+    * Wikipediaと総務省統計局の情報を元に作成してありますので必要に応じて加工してください
     * 推定人口はH30年時点のもので単位は千人
+* 個票を集計しただけでは因果関係は分からない
 
 
 
