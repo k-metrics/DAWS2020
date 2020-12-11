@@ -88,30 +88,20 @@ PCR検査の実施件数              | 暫定値であり後日変更される�
 Exploratory EDA Salonなどで紹介されている有志によるJSON形式データ。[個票データ](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data)（下表）と[集計データ](https://github.com/reustle/covid19japan-data/tree/master/docs/summary)に分かれています。全て英語。
 
 ```{r}
-path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/"
-path <- paste0(path, "docs/patient_data/")
-
-path %>% 
-  paste0("latest.json") %>% 
-  readr::read_lines() %>% 
-  paste0(path, .) %>% 
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
+  paste0("docs/patient_data/latest.json") %>% 
   jsonlite::fromJSON()
 ```
 
 
 ## Covid19 Japan データの注意点
-読み込むには`jsonlite`パッケージを利用して以下のコードで読み込んでください。データは[Covid19 Japan](https://covid19japan.com/)のサイトでなく[GitHub](https://github.com/reustle/covid19japan-data)で公開されています。
+2020/12/10からファイル構成が変更されています。読み込むには`jsonlite`パッケージを利用して以下のコードで読み込んでください。データは[Covid19 Japan](https://covid19japan.com/)のサイトでなく[GitHub](https://github.com/reustle/covid19japan-data)で公開されています。
 
 ```{r, echo=TRUE, eval=FALSE}
 library(tidyverse)
 library(jsonlite)
-path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
-  paste0("docs/patient_data/")
-
-path %>% 
-  paste0("latest.json") %>% 
-  readr::read_lines() %>% 
-  paste0(path, .) %>% 
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
+  paste0("docs/patient_data/latest.json") %>% 
   jsonlite::fromJSON()
 ```
 
