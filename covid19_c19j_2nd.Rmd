@@ -47,12 +47,15 @@ caption <- "Data Source: covid19japan.com"
 ## 個票データ（Patient Data）
 陽性者単位の個票データ。
 ```{r}
-path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
+# path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
+# 
+# df <- path %>% 
+#   paste0("latest.json") %>% 
+#   readr::read_lines() %>% 
+#   paste0(path, .) %>% 
+#   jsonlite::fromJSON()
 
-df <- path %>% 
-  paste0("latest.json") %>% 
-  readr::read_lines() %>% 
-  paste0(path, .) %>% 
+df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
   jsonlite::fromJSON()
 
 df
@@ -64,12 +67,15 @@ df
 死亡者数や重症者数などの推移データは`summary`フォルダ内のJSON形式ファイルにまとめられている。読み込むと分かるがリスト型で、その中データフレームが含まれる形式である。  
 `summary`フォルダの他に`summary_min`フォルダというフォルダがあるが、`summary_min`フォルダ内のJSONファイルは単に改行を省略して小さくしたファイル。
 ```{r}
-path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/"
+# path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/"
+# 
+# df_s <- path %>% 
+#   paste0("latest.json") %>% 
+#   readr::read_lines() %>% 
+#   paste0(path, .) %>% 
+#   jsonlite::fromJSON()
 
-df_s <- path %>% 
-  paste0("latest.json") %>% 
-  readr::read_lines() %>% 
-  paste0(path, .) %>% 
+df_s <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/latest.json" %>% 
   jsonlite::fromJSON()
 
 df_s %>% summary()
@@ -1509,17 +1515,19 @@ ts_week %>%
 
 トレンドを抜き出してみる。移動平均に酷似している。
 ```{r}
+ymax <- 3000
+
 ts_week %>% 
   stats::decompose() %>% 
   .$x %>% 
-  plot(ylim = c(0, 1500), main = paste0("全国 @", datetime))
+  plot(ylim = c(0, ymax), main = paste0("全国 @", datetime))
 
 par(new = TRUE)
 
 ts_week %>% 
   stats::decompose() %>% 
   .$trend %>% 
-  plot(ylim = c(0, 1500), col = "dark green", lwd = 3)
+  plot(ylim = c(0, ymax), col = "dark green", lwd = 3)
 
 ```
 
