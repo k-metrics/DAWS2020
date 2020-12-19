@@ -182,7 +182,7 @@ beds_by_pref
 ### 新型コロナ関連ニュース
 新型コロナ関連のニュース
 ```{r}
-news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/4c971a6cde2033e458525b793e832c4a87cbae2d/covid19_news.csv" %>% 
+news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/af750e1a8a6c9331229c6139e1aec72f56833bbf/covid19_news.csv" %>% 
     readr::read_csv() %>% 
   dplyr::filter(area == "日本")
 news
@@ -382,10 +382,10 @@ x_by_all %>%
                 wday = dplyr::if_else(wday > 5, TRUE, FALSE),
                 wday = dplyr::if_else(hday | wday, 3000L,  NA_integer_)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
-                      fill = "red", alpha = 0.1) + 
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
-                        colour = "dark blue", linetype = "dashed", size = 0.15) +
+    # ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
+    #                   fill = "red", alpha = 0.1) + 
+    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+    #                     colour = "dark blue", linetype = "dashed", size = 0.15) +
     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = goto,
                         colour = "magenta", linetype = "dashed", size = 0.25) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
@@ -397,9 +397,9 @@ x_by_all %>%
     ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
                   subtitle = subtitle, caption = caption,
                   x = "", y = "") +
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
-                              size = 2.0, data = emergency) +
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2250, label = news),
+    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
+    #                           size = 2.0, data = emergency) +
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 3000, label = news),
                               size = 2.5, data = goto, colour = "magenta") + 
     ggplot2::scale_y_continuous(
       name = "陽性者数・移動平均（破線）",
