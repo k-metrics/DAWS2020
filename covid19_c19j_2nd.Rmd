@@ -223,8 +223,9 @@ df %>%
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
                 pref = detectedPrefecture, patientStatus, knownCluster,
-                confirmedPatient, charterFlightPassenger,
-                cruisePassengerDisembarked, ageBracket,
+                confirmedPatient,
+                # charterFlightPassenger, cruisePassengerDisembarked,
+                ageBracket,
                 deceasedDate, deceasedReportedDate) %>% 
   dplyr::filter(confirmedPatient == TRUE) %>% 
   dplyr::mutate(date = lubridate::as_date(date),
