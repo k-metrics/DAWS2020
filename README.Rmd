@@ -18,7 +18,7 @@ require(tidyverse)
 　  
 
 ### 個票データ
-個票データは、[Covid19 Japan](https://covid19japan.com/) が GitHub で公開している [JSON形式の個票データ（CC BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data) のデータを加工した以下の形式のデータ（CSV形式）を用います。ファイルは Google Drive に格納します。
+個票データは、[Covid19 Japan](https://covid19japan.com/) が GitHub で公開している [JSON形式の個票データ（CC BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data) のデータを加工した以下の形式のデータ（CSV形式・UTF-8）を用います。ファイルは Google Drive にも格納します。
 
 ```{r, message=FALSE, echo=FALSE}
 df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
@@ -27,14 +27,14 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
   dplyr::rename(pcode = `コード`) %>% 
-  dplyr::mutate(# pref = stringr::str_to_title(pref),
-                # pcode = forcats::fct_inorder(pcode),
-                fct_pref = forcats::fct_inorder(pref)) # ,
-                # `都道府県` = forcats::fct_inorder(`都道府県`),
-                # `八地方区分` = forcats::fct_inorder(`八地方区分`),
-                # `広域圏` = forcats::fct_inorder(`広域圏`),
-                # `通俗的区分` = forcats::fct_inorder(`通俗的区分`),
-                # `推計人口` = as.integer(`推計人口`))
+  dplyr::mutate(pref = stringr::str_to_title(pref),
+                pcode = forcats::fct_inorder(pcode),
+                fct_pref = forcats::fct_inorder(pref) ,
+                `都道府県` = forcats::fct_inorder(`都道府県`),
+                `八地方区分` = forcats::fct_inorder(`八地方区分`),
+                `広域圏` = forcats::fct_inorder(`広域圏`),
+                `通俗的区分` = forcats::fct_inorder(`通俗的区分`),
+                `推計人口` = as.integer(`推計人口`))
 
 x <- df %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
@@ -55,7 +55,7 @@ x <- df %>%
   dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref")) %>% 
   # dplyr::select(-`推計人口`, -pref) %>%
   # dplyr::select(pref) %>%
-  dplyr::rename(pref = `都道府県`, region = `八地方区分`, populationｓ = `推計人口`) %>% 
+  dplyr::rename(pref = `都道府県`, region = `八地方区分`, population = `推計人口`) %>% 
   dplyr::select(-pcode, -`広域圏`, -`通俗的区分`, -fct_pref)
   # tidyr::drop_na(pref)
 
@@ -69,14 +69,14 @@ x %>%
 列名（変量名）     | データ形式 | 説明
 -------------------|------------|----------------------------------------------
 patientId          | String     | 陽性判定者の識別情報（厚生労働省のIDとは異なる）
-confirmedPatient   | boolean    | FALSEの場合は重複報告などの可能性あり
-dateAnnounced      | YYYY-MM-DD | 陽性判定の報告日（検査日ではない）
-ageBracket         | Numeric    | 陽性者の年代（非公開あり）
+date               | YYYY-MM-DD | 陽性判定の報告日（検査日ではない）
 gender             | String     | 陽性者の性別（非公開あり）
-residence          | String     | 陽性者の居住地（非公開あり）
 detectedPrefecture | String     | 報告主体（都道府県ならびに空港検疫など）
-patientStatus      | String     | 陽性者の状態
+patientStatus      | String     | 陽性者の状態（[詳細](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md)）
 knownCluster       | String     | 陽性者のクラスタに関する情報
+confirmedPatient   | boolean    | FALSEの場合は重複報告などの可能性あり
+residence          | String     | 陽性者の居住地（非公開あり）
+ageBracket         | Numeric    | 陽性者の年代（非公開あり）
 pref               | String     | `detectedPrefecture` の日本語
 region             | String     | 八地方区分
 population         | Numeric    | H30年時点の推計情報（単位は千人、出典：統計局）
