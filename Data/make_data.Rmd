@@ -30,7 +30,7 @@ x <- df %>%
                 detectedPrefecture, patientStatus, knownCluster,
                 confirmedPatient,
                 ageBracket) %>% 
-  dplyr::filter(confirmedPatient == TRUE) %>% 
+  # dplyr::filter(confirmedPatient == TRUE) %>% 
   dplyr::left_join(prefs, by = c("detectedPrefecture" = "pref")) %>% 
   dplyr::rename(pref = `都道府県`, region = `八地方区分`, popu = `推計人口`) %>% 
   dplyr::select(-pcode, -`広域圏`, -`通俗的区分`)
