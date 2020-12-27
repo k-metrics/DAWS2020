@@ -1,0 +1,860 @@
+---
+title: "Covid19Japan.com"
+output:
+  html_document:
+    code_folding : hide
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
+require(tidyverse)
+require(jsonlite)
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: covid19japan.com"
+```
+
+
+[Covid19 Japan](covid19japan.com)が独自に収集している陽性者単位のデータ（個票データ）。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されており、データはJSON形式。「レコード数 $\neq$ 累計陽性者数」であることに注意。
+
+　  
+
+# Import
+[Covid19 Japan](covid19japan.com)が[GitHub](https://github.com/reustle/covid19japan)で公開しているデータは前述のようにJSON形式であり、最新データは`latest.json`ファイルで示されている。このため、読み込む際はひと工夫必要。
+
+
+## 個票データ（Patient Data）
+陽性者単位の個票データ。
+```{r}
+# path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
+# 
+# df <- path %>% 
+#   paste0("latest.json") %>% 
+#   readr::read_lines() %>% 
+#   paste0(path, .) %>% 
+#   jsonlite::fromJSON()
+
+df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON()
+
+df
+```
+
+　  
+
+## 集計データ（Summary Data）
+死亡者数や重症者数などの推移データは`summary`フォルダ内のJSON形式ファイルにまとめられている。読み込むと分かるがリスト型で、その中データフレームが含まれる形式である。  
+`summary`フォルダの他に`summary_min`フォルダというフォルダがあるが、`summary_min`フォルダ内のJSONファイルは単に改行を省略して小さくしたファイル。
+```{r}
+# path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/"
+# 
+# df_s <- path %>% 
+#   paste0("latest.json") %>% 
+#   readr::read_lines() %>% 
+#   paste0(path, .) %>% 
+#   jsonlite::fromJSON()
+
+df_s <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/summary/latest.json" %>% 
+  jsonlite::fromJSON()
+
+df_s %>% summary()
+```
+
+　  
+三つのデータフレームと一つのベクトル（更新日時）から構成されている。データフレームは上から順に都道府県別、地方別、日次となっているが、`Length`を見てわかるようにそれぞれに含まれる集計データが異なっている。  
+
+　  
+
+### 都道府県単位集計
+更新日時（`$updated`）における都道府県単位での累積値。厚生労働省がオープンデータから除いている空港検疫・ダイヤモンドプリンセス・長崎クルーズ船・その他が含まれるので全`r nrow(df_s$prefectures)`区分になっている。
+```{r}
+df_s$prefectures
+```
+
+陽性者・死亡者などの時系列集計データがネストされて格納されている。日付はネストされていないので、各項目に対する`startDate`の項を参照すること。  
+
+項目                     | 内容                     | 備考
+-------------------------|--------------------------|--------------------------
+dailyConfirmedCount      | 陽性者数                 | 単日
+dailyConfirmedStartDate  | 陽性者数のカウント開始日 | 区分により開始日が異なる
+dailyDeceasedCount       | 死亡者数                 | 単日
+dailyDeceasedStartDate   | 死亡者数のカウント開始日 | 区分により開始日が異なる
+dailyRecoveredCumulative | 快復者数                 | 累計
+dailyRecoveredStartDate  | 快復者数のカウント開始日 | 区分により開始日が異なる
+dailyActive              | 治療者数^1^              | 単日
+dailyActiveStartDate     | 治療者数のカウント開始日 | 区分により開始日が異なる
+
+^1^ 陽性者数から死亡者数と快復者数を引いた数値を治療者数としている
+
+　  
+
+### 地方単位集計
+更新日次時点における地方区分単位での累積値。陽性者の時系列集計データが都道府県単位データと同様にネストで格納されているが、死亡者・快復者・治療者のデータは含まれていない。  
+なお、時系列データの合計値と累積項の値が一致しない場合がある。
+```{r}
+df_s$regions
+df_s$regions$confirmed[1]
+df_s$regions$dailyConfirmedCount[[1]] %>% sum()
+```
+
+　  
+
+### 日次集計
+個票データを日次で集計したもの。日付を見れば分かる通り暗黙の欠落を含んでいる。
+```{r}
+df_s$daily
+```
+
+　  
+
+### 更新日時
+集計データの更新日時。
+```{r}
+df_s$updated
+```
+
+```{r, include=FALSE}
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+```
+
+　  
+
+## Area Data
+地域・地方ごとの分析を行う場合に便利な都道府県データを用意した。このデータは[Gist](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)で公開している。
+```{r, echo=FALSE, message=FALSE}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(pcode = `コード`) %>% 
+  dplyr::mutate(pref = stringr::str_to_title(pref),
+                pcode = forcats::fct_inorder(pcode),
+                fct_pref = forcats::fct_inorder(pref),
+                `都道府県` = forcats::fct_inorder(`都道府県`),
+                `八地方区分` = forcats::fct_inorder(`八地方区分`),
+                `広域圏` = forcats::fct_inorder(`広域圏`),
+                `通俗的区分` = forcats::fct_inorder(`通俗的区分`),
+                `推計人口` = as.integer(`推計人口`))
+
+prefs
+```
+
+　  
+
+## Others
+
+### 病床データ
+[新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)のデータも用意しておく。
+```{r, eval=FALSE}
+if (googlesheets4::gs4_has_token()) {
+beds_by_pref <- "https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8" %>% 
+  googlesheets4::read_sheet() %>% 
+  dplyr::arrange(dplyr::desc(`発表日`)) %>% 
+  dplyr::distinct(`自治体名`, .keep_all = TRUE) %>% 
+  dplyr::rename(pref = `自治体名`, beds = `新型コロナウイルス対策感染症病床数`,
+                date = `発表日`) %>% 
+  dplyr::mutate(beds = as.integer(beds), date = lubridate::as_date(date))
+beds_by_pref
+}
+```
+
+　  
+
+### 新型コロナ関連ニュース
+新型コロナ関連のニュース
+```{r}
+news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/3509f796bbfb0d86b03813d75b12a91c234f98bd/covid19_news.csv" %>% 
+    readr::read_csv() %>% 
+  dplyr::filter(area == "日本")
+news
+```
+
+　  
+
+## Tidy & Transform
+各変量（フィーチャー）を適切な形式に変換し、地域区分でも分析できるように都道府県データと結合することで、ベースとなるデータセットを作成する。なお、都道府県以外で報告されたレコードを除いている。
+```{r}
+x <- df %>% 
+  dplyr::select(patientId, date = dateAnnounced, gender,
+                pref = detectedPrefecture, patientStatus, knownCluster,
+                confirmedPatient,
+                # charterFlightPassenger, cruisePassengerDisembarked,
+                ageBracket,
+                deceasedDate, deceasedReportedDate) %>% 
+  # dplyr::filter(date < lubridate::today()) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(date = lubridate::as_date(date),
+                gender = forcats::as_factor(gender),
+                patientStatus = forcats::as_factor(patientStatus),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+                ageBracket = forcats::as_factor(ageBracket),
+                deceasedDate = lubridate::as_date(deceasedDate),
+                deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
+  dplyr::select(-`推計人口`, -pref) %>% 
+  dplyr::rename(pref = `都道府県`, region = `八地方区分`) %>% 
+  tidyr::drop_na(pref)
+
+x
+```
+
+　  
+
+# Data Wrangling
+
+## 陽性者の集計
+最初に陽性者をキーに集計する。
+　  
+
+### 全国集計
+全国の累計陽性者数と推計人口[千人]、ならびに、人口千人あたりの累計陽性者数。
+```{r}
+r_by_all <- x %>% 
+  dplyr::filter(!is.na(pref)) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::bind_cols(prefs %>% dplyr::summarise(population = sum(`推計人口`))) %>% 
+  dplyr::mutate(rate = round(n / population, 2))
+
+r_by_all %>% 
+  dplyr::rename(`累計陽性者数[人]` = n, `推計人口[千人]` = population,
+                `人口千人あたりの累計陽性者数` = rate)
+```
+
+　  
+
+### 地方別集計
+次に地方別の累計陽性者数と推計人口[千人]、ならびに、人口千人あたりの累計陽性者数。
+```{r}
+region <- prefs %>% 
+  dplyr::group_by(`八地方区分`) %>% 
+  dplyr::summarise(population = sum(`推計人口`)) %>% 
+  dplyr::rename(region = `八地方区分`)
+
+r_by_region <- x %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::left_join(region, by = c("region" = "region")) %>% 
+  dplyr::select(region, n, population) %>% 
+  dplyr::mutate(rate = round(n / population, 2))
+
+r_by_region %>% 
+  dplyr::rename(`地方` = region,
+                `累計陽性者数[人]` = n, `推計人口[千人]` = population,
+                `人口千人あたりの累計陽性者数` = rate)
+```
+
+　  
+
+上表を可視化する。グレーの破線は切片ゼロで傾きが全国の人口千人あたりの累計陽性者数（`r r_by_all$rate`）。
+```{r}
+r_by_region %>% 
+  dplyr::rename(key = region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_abline(slope = r_by_all$rate, intercept = 0,
+                         colour = "gray", linetype = "dashed") + 
+    ggplot2::geom_point(ggplot2::aes(colour = key)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = key, colour = key)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("推計人口と累計陽性者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "推計人口[千人]", y = "累計陽性者数[人]")
+```
+
+　  
+
+### 都道府県別集計
+同様に都道府県別の累計陽性者数と推計人口[千人]、ならびに、人口千人あたりの累計陽性者数。任意の列でソートできるようにしてある。
+```{r}
+r_by_pref <- x %>% 
+  dplyr::group_by(pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::left_join(prefs, by = c("pref" = "都道府県")) %>% 
+  dplyr::select(pref, n, population = `推計人口`) %>% 
+  dplyr::mutate(rate = round(n / population, 2))
+
+r_by_pref %>% 
+  dplyr::rename(`都道府県` = pref,
+                `累計陽性者数[人]` = n, `推計人口[千人]` = population,
+                `人口千人あたりの累計陽性者数` = rate) %>% 
+  tibble::rowid_to_column("No") %>% 
+  DT::datatable()
+```
+
+　  
+
+上表を可視化する。グレーの破線は切片ゼロで傾きが全国の人口千人あたりの累計陽性者数（`r r_by_all$rate`）。
+```{r}
+r_by_pref %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_abline(slope = r_by_all$rate, intercept = 0,
+                         colour = "gray", linetype = "dashed") + 
+    ggplot2::geom_point(ggplot2::aes(colour = key)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = key, colour = key)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("推計人口と累計陽性者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "推計人口[千人]", y = "累計陽性者数[人]")
+
+```
+
+　  
+
+推計人口が550万人未満の都道府県のみ抽出する。グレーの破線は上図と同様。
+```{r}
+r_by_pref %>% 
+  dplyr::filter(population < 5500) %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = population, y = n) ) + 
+    ggplot2::geom_abline(slope = r_by_all$rate, intercept = 0,
+                         colour = "gray", linetype = "dashed") + 
+    ggplot2::geom_point(ggplot2::aes(colour = key)) + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = key, colour = key)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("推計人口と累計陽性者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "推計人口[千人]", y = "累計陽性者数[人]")
+```
+
+
+　  
+
+## 陽性者の日次集計
+
+　  
+
+### 全国日次集計
+全国の日次単位の陽性者数、前日差、累計、移動平均を求める。
+```{r}
+x_by_all <- x %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
+                  fill = list(n = 0L)) %>% 
+  dplyr::mutate(diff = lagdiff(n), cum = cumsum(n), ma7 = ma7(n), ma28 = ma28(n))
+
+x_by_all %>% 
+  dplyr::select(`発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `累計陽性者数` = cum, `移動平均（7日）` = ma7)
+```
+
+　  
+
+上表を可視化する。
+```{r}
+# 祝日ファイルは以下をダウンロードしておく（SSLがエラーになるので自動処理できない）
+# "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv"
+
+# 祝日判定関数
+source("https://raw.githubusercontent.com/logics-of-blue/website/master/010_forecast/20190714_R%E8%A8%80%E8%AA%9E%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E6%97%A5%E6%9C%AC%E3%81%AE%E7%A5%9D%E6%97%A5%E5%88%A4%E5%AE%9A/jholiday.R", encoding="utf-8")
+
+sec_scale <- 100
+
+ylim <- 5000L
+
+emergency <- news %>% 
+  dplyr::filter(category == "緊急事態")
+
+gotos <- news %>% 
+  dplyr::filter(category == "GoToS")
+
+gotoe <- news %>% 
+  dplyr::filter(category == "GoToE")
+
+goto <- gotos %>% 
+  dplyr::bind_rows(gotoe)
+
+x_by_all %>% 
+  dplyr::mutate(hday = is.jholiday(target_date = date,
+                                   holiday_source = "./Covid19/syukujitsu.csv"),
+                wday = lubridate::wday(date, week_start = 1),
+                wday = dplyr::if_else(wday > 5, TRUE, FALSE),
+                wday = dplyr::if_else(hday | wday, ylim,  NA_integer_)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    # ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
+    #                   fill = "red", alpha = 0.1) + 
+    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+    #                     colour = "dark blue", linetype = "dashed", size = 0.15) +
+    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
+    #                           size = 2.0, data = emergency) +
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
+                        colour = "magenta", linetype = "dashed", size = 0.25) + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 3500, label = news),
+                              size = 2.5, data = gotos, colour = "magenta") + 
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 4500, label = news),
+                              size = 2.5, data = gotoe, colour = "dark cyan") + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+                      fill = "dark gray", alpha = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
+                       colour = "dark green", size = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+                       colour = "dark green", size = 1.0) +
+    ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（破線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累積陽性者数（折線）")
+    )
+# + 
+#     ggplot2::ylim(0, ylim)
+
+x_by_all %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_line(ggplot2::aes(y = diff), colour = "dark green", alpha = 0.5) + 
+    ggplot2::labs(title = paste0("【全国】陽性者数の前日差 @", datetime),
+                  subtitle = subtitle, caption = caption, 
+                  x = "", y = "前日差")
+```
+
+　  
+
+### 地方別日次集計
+同様に地方別の日次単位の陽性者数、前日差、累計、移動平均を求める。
+```{r}
+x_by_region <- x %>% 
+  dplyr::group_by(date, region) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = region, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "region", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::group_by(region) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n)),
+                ma28 = purrr::map(data, ~ ma28(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs %>% dplyr::distinct(`八地方区分`), .,
+                   by = c("八地方区分" = "region")) %>% 
+  dplyr::mutate(region = forcats::fct_inorder(`八地方区分`)) %>% 
+  dplyr::arrange(date)
+
+x_by_region %>% 
+  dplyr::filter(date == max(date)) %>% 
+  dplyr::mutate(ma7 = round(ma7, 1)) %>% 
+  dplyr::select(`地方` = region,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
+
+x_by_region %>% 
+  dplyr::select(`地方` = region,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
+```
+
+　  
+
+上表を可視化する。
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = n)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = region), stat = "identity",
+                      width = 1.0, alpha = 0.5) + 
+    ggplot2::labs(title = paste0("【地方別】陽性者数の推移（単日） @", datetime),
+                  subtitle = subtitle, caption = caption, 
+                  x = "", y = "陽性者数") 
+```
+
+　  
+
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = ma7, colour = region)) + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
+                        colour = "magenta", linetype = "dashed", size = 0.25) + 
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1200, label = news),
+                              size = 2.5, data = gotos, colour = "magenta") + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1000, label = news),
+                              size = 2.5, data = gotoe, colour = "dark cyan") + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggplot2::labs(title = paste0("【地方別】移動平均（7日） @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "陽性者数") + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region),
+                             data = subset(x_by_region, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(x_by_region$date),
+                        max(x_by_region$date) + 45))
+```
+
+　  
+
+```{r}
+x_by_region %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = cum, colour = region)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("【地方別】累計陽性者数 @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "累計陽性者数") + 
+    ggrepel::geom_text_repel(ggplot2::aes(label = region),
+                             data = subset(x_by_region, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(x_by_region$date),
+                        max(x_by_region$date) + 45))
+```
+
+　  
+
+地方単位で可視化。
+```{r}
+sec_scale <- 20
+ncol <- 2
+
+x_by_region %>% 
+  dplyr::rename(key = region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.5, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "dotted", size = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（点線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者累計（実線）")
+    )
+```
+
+　  
+
+傾向が見えるように縦軸をフリースケールとする。
+```{r}
+sec_scale <- 20
+ncol <- 2
+
+x_by_region %>% 
+  dplyr::rename(key = region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.5, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "dashed", size = 0.5) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol  = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（破線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者累計（実線）")
+    )
+```
+
+　  
+
+### 都道府県別日次集計
+同様に都道府県別の日次単位の陽性者数、前日差、累計、移動平均を求める。
+```{r}
+x_by_pref <- x %>% 
+  dplyr::group_by(date, pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = pref, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "pref", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::group_by(pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n)),
+                ma28 = purrr::map(data, ~ ma28(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs, ., by = c("都道府県" = "pref")) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(`都道府県`)) %>% 
+  dplyr::arrange(date)
+
+x_by_pref %>% 
+  dplyr::filter(date == max(date)) %>% 
+  dplyr::mutate(ma7 = round(ma7, 1)) %>% 
+  dplyr::select(`都道府県` = pref,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7) %>% 
+  DT::datatable()
+
+x_by_pref %>% 
+  dplyr::select(`都道府県` = pref,
+                `発表日` = date, `陽性者数` = n, `前日差` = diff,
+                `陽性者累計` = cum, `移動平均（7日）` = ma7)
+```
+
+　  
+
+上表を可視化する。
+```{r, fig.height=15, fig.width=10}
+sec_scale <- 100
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+x_by_pref %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+```
+
+　  
+
+傾向が見えるように縦軸をフリースケールとする。
+```{r, fig.height=30, fig.width=10}
+ncol <- 3
+
+x_by_pref %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+  ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.35, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+```
+
+<!-- ここまで（2020/11/10） ------------------------------------------------ -->
+
+　  
+
+## 死亡者の日次集計
+厚生労働省のデータと乖離がある。
+　  
+
+### 都道府県別
+都道府県別の日次単位の死亡者数、前日差、累計、移動平均（7日）を求める。
+```{r}
+start <- df_s$prefectures %>% 
+  dplyr::select(pref = name, date = dailyDeceasedStartDate) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
+  dplyr::arrange(pcode) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::select(date, pref = `都道府県`) %>% 
+  dplyr::distinct(date) %>% 
+  .$date %>% lubridate::as_date()
+
+d_by_prefs <- df_s$prefectures %>% 
+  dplyr::select(deceased = dailyDeceasedCount, pref = name) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "pref")) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::select(pref = `都道府県`, deceased) %>% 
+  tidyr::unnest(deceased) %>% 
+  tidyr::pivot_wider(names_from = pref, values_from = deceased) %>% 
+  tidyr::unnest() %>% 
+  dplyr::mutate(date = seq.Date(from = start, to = start + nrow(.) - 1,
+                                by = "day")) %>% 
+  dplyr::select(date, dplyr::everything()) %>% 
+  tidyr::pivot_longer(col = -date, names_to = "pref", values_to = "n") %>% 
+  dplyr::group_by(pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs, ., by = c("都道府県" = "pref")) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(`都道府県`)) %>% 
+  dplyr::select(date, pref, n, diff, cum, ma7) %>% 
+  dplyr::arrange(date)
+d_by_prefs
+```
+
+
+```{r, fig.height=15, fig.width=10}
+sec_scale <- 100
+ncol <- 5
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+d_by_prefs %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+   ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Free Y scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計陽性者数（折線）")
+    )
+
+```
+
+　  
+
+### 地方別
+集計データ`$regions`には死亡者数の日次データが存在しないため`$prefectures`のデータから計算する。
+```{r}
+d_by_region <- d_by_prefs %>% 
+  dplyr::select(date, pref = pref, n) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "都道府県")) %>% 
+  tidyr::drop_na(pcode) %>% 
+  dplyr::group_by(date, `八地方区分`) %>% 
+  dplyr::summarise(n = sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(region = `八地方区分`) %>% 
+  dplyr::group_by(region) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::arrange(date)
+d_by_region
+```
+
+　  
+
+### 陽性者比率と死亡者比率
+```{r}
+rpd_by_all <- d_by_region %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_region, ., by = c("region")) %>% 
+  dplyr::select(region, positive = n, deceased = d, population) %>% 
+  dplyr::select(-region) %>% 
+  dplyr::summarise_all(sum) %>% 
+  dplyr::mutate(p_rate = round(positive / population, 2),
+                d_rate = round(deceased / positive, 2))
+
+rpd_by_all %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+```
+
+　  
+
+```{r}
+rpd_by_region <- d_by_region %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_region, ., by = c("region")) %>% 
+  dplyr::select(region, positive = n, deceased = d, population, p_rate = rate) %>% 
+  dplyr::mutate(d_rate = round(deceased / positive, 2))
+
+rpd_by_region %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+
+```
+
+　  
+
+```{r}
+rpd_by_prefs <- d_by_prefs %>% 
+  dplyr::group_by(pref) %>% 
+  dplyr::summarise(d = sum(n)) %>% 
+  dplyr::left_join(r_by_pref, ., by = "pref") %>% 
+  dplyr::select(pref, positive = n, deceased = d, population, p_rate = rate) %>% 
+  dplyr::mutate(d_rate = round(deceased / positive, 2)) 
+
+rpd_by_prefs %>% 
+  dplyr::rename(`陽性者数` = positive, `死亡者数` = deceased,
+                `推計人口` = population, `人口千人あたりの陽性者比率` = p_rate,
+                `陽性者に対する死亡者比率` = d_rate)
+
+```
+
+　  
+
+### 全国日次集計
+都道府県別のデータから全国の日次集計を求める。
+```{r}
+d_by_all <- d_by_prefs %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(diff = lagdiff(n), cum = cumsum(n), ma7 = ma7(n))
+d_by_all
+```
+
+
+```{r}
+sec_scale <- 50
+datetime <- lubridate::as_datetime(df_s$updated, tz = "Japan")
+
+d_by_all %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+   ggplot2::geom_bar(ggplot2::aes(y = n), fill = "dark gray", stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), colour = "dark green",
+                       linetype = "dashed", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::labs(title = paste0("Fixed scale @", datetime),
+                  subtitle = subtitle, caption = caption,
+                  x = "", y = "") + 
+    ggplot2::scale_y_continuous(
+      name = "死亡者数・同移動平均（破線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "累計死亡者数（実線）")
+    )
+
+```
+
+　  
+

@@ -1,0 +1,228 @@
+---
+title: "Covid19, Japan"
+output:
+  html_document:
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+require(tidyverse)
+require(jsonlite)
+```
+
+日本の新型コロナウィルスに関する情報が抱える大きな問題は、ソースごとに値が微妙にことなっていることです。原因は明白で、総元締めであるはずの厚生労働省が各自治からの患者データを集計せずに各自治体のプレスリリースやウェブサイトの数値を積上げたものを発表していることにあります。  
+本来であれば医療機関->市町村->都道府県->厚生労働省の順で患者のデータを全て吸い上げて集計すべきなのです。
+
+
+
+# 厚生労働省データ
+厚生労働省の[オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)のページで公開しているデータは、あくまでも、**「国内事例」**のみであり、チャーター便、空港検疫、外国船籍の客船を除くデータになっている。なお、データによっては途中からデータソースが変更されているものがある。
+
+　  
+
+## Import
+項目ごとのCSVファイルになっているため、個々に読み込む。
+
+　  
+
+### 陽性確定者数
+「陽性者数」のデータ。ここでは、全て陽性確定者と表記する。厚生労働省が公開している陽性確定者数のデータは単日のデータのみ。
+```{r}
+"https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
+  readr::read_csv()
+```
+
+　  
+
+### 死亡者数
+死亡者数のデータは、なぜか累計データだけが公開されている。
+```{r}
+"https://www.mhlw.go.jp/content/death_total.csv" %>% 
+  readr::read_csv()
+```
+
+　  
+
+### 入院治療等を要する者の数
+いわゆる無症状患者などの軽症患者を除く陽性確定者の数。各報告日時点の集計値となっている。
+```{r}
+"https://www.mhlw.go.jp/content/cases_total.csv" %>% 
+  readr::read_csv()
+```
+
+　  
+
+## Wrangring (tidy and transform)
+各データを扱いやすいように変換する。
+
+### 陽性確定者数
+単日のデータなので累計データを求める。なお、記録漏れがあっても対処できるように日付の補完を行う。
+```{r}
+df_mhlw <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  dplyr::mutate(n = as.integer(`PCR 検査陽性者数(単日)`),
+                cum = cumsum(n)) %>% 
+  dplyr::select(date, n, cum)
+
+df_mhlw
+```
+
+　  
+
+### 死亡者数
+陽性確定者数とは逆に短日の数値を求める。
+```{r}
+dead_mhlw <- "https://www.mhlw.go.jp/content/death_total.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  dplyr::mutate(cum_dead = as.integer(`死亡者数`),
+                dead = cum_dead - dplyr::lag(cum_dead, default = 0)) %>% 
+  dplyr::select(date, dead, cum_dead)
+
+dead_mhlw
+```
+
+### 入院治療等を要する者の数
+各報告日時点の集計値。
+```{r}
+patient_mhlw <- "https://www.mhlw.go.jp/content/cases_total.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  dplyr::mutate(patient = as.integer(`入院治療を要する者`)) %>% 
+  dplyr::select(date, patient)
+patient_mhlw
+```
+
+　  
+
+### 結合
+上記のデータフレームをひとつにまとめる。
+```{r}
+x_mhlw <- df_mhlw %>% 
+  dplyr::left_join(dead_mhlw, by = c("date")) %>% 
+  dplyr::left_join(patient_mhlw, by = c("date")) %>% 
+  tidyr::replace_na(list(dead = 0L, cum_dead = 0L, patient = 0L)) %>% 
+  dplyr::mutate(diff = n - dplyr::lag(n, default = 0L),
+                diff_dead = dead - dplyr::lag(dead, default = 0L),
+                diff_patient = patient - dplyr::lag(patient, default = 0L)) %>% 
+  dplyr::select(date, n, diff, cum, patient, diff_patient, dead, diff_dead, cum_dead)
+x_mhlw
+```
+
+　  
+
+# Covid19 Japan
+[Covid19 Japan](covid19japan.com)が独自に収集している陽性確定者単位のデータ。ソースとデータは全て[GitHub](https://github.com/reustle/covid19japan)にて公開されているが、データはJSON形式である点に注意。厚生労働省のデータと異なり、チャーター便、空港検疫、外国船籍の客船が**含まれている**点に注意。  
+なお、発表後に修正されたレコード（インスタンス）は削除されれずにステータスなどが変更されているので「レコード数 $\neq$ 累計陽性確定者」である。
+
+　  
+
+## Import
+JSON形式のデータを読み込むには`jsonlite`パッケージを用いる。
+```{r}
+path <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/"
+
+df <- path %>% 
+  paste0("latest.json") %>% 
+  readr::read_lines() %>% 
+  paste0(path, .) %>% 
+  jsonlite::fromJSON()
+df
+```
+
+
+
+## Wrangring (tidy and transform)
+まう、データを把握するために`skimr`パッケージを用いて要約する。
+```{r, eval=FALSE}
+df %>% 
+  skimr::skim()
+```
+
+ほとんどが文字列データなので、適宜、項目を変換すると共に使いそうもない項目を削除しておく。
+```{r}
+df %>% 
+  dplyr::mutate(date = lubridate::as_date(dateAnnounced),
+                ageBracket = forcats::as_factor(ageBracket),
+                gender = forcats::as_factor(gender),
+                patientStatus = forcats::as_factor(patientStatus),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE)) %>% 
+  dplyr::select(patientId, date, ageBracket, gender, detectedPrefecture,
+                patientStatus, knownCluster, cluster, confirmedPatient,
+                charterFlightPassenger, cruisePassengerDisembarked) %>% 
+  dplyr::filter(confirmedPatient == TRUE)
+```
+
+
+
+```{r, eval=FALSE}
+df %>% 
+  dplyr::group_by(patientId) %>% 
+  dplyr::summarise(n = n())
+
+df %>% 
+  dplyr::filter(patientId == "-1")
+
+df %>% 
+  dplyr::filter(patientStatus == "Deceased")
+```
+
+
+# JAG Japan
+[ジャッグジャパン株式会社](https://gis.jag-japan.com/covid19jp/)が独自に収集している陽性確定者単位のデータ。データはCSV形式にて公開されているが、GIS処理用のデータが含まれている点に注意。「レコード数 $=$ 累計陽性確定者数」になっている。
+
+
+
+## Import
+GIS処理用のデータは不要なのでWrangringの前に除いておきます。
+```{r}
+df_jag <- "https://dl.dropboxusercontent.com/s/6mztoeb6xf78g5w/COVID-19.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::select(1:20)
+
+df_jag
+```
+
+```{r}
+df_jag %>% 
+  dplyr::mutate(date = lubridate::mdy(`確定日`))
+```
+
+
+## Wrangring (tidy and transform)
+
+
+
+　  
+
+# Area Data
+都道府県と地方区分に関するデータをGistで公開していますので、使いたい方はご自由に。
+```{r, echo=FALSE, message=FALSE}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/bcf237d21ace39eb74adafe76d6cb1d5c463d31e/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(pcode = `コード`) %>% 
+  dplyr::mutate(pref = stringr::str_to_title(pref),
+                pcode = forcats::fct_inorder(pcode),
+                fct_pref = forcats::fct_inorder(pref),
+                `都道府県` = forcats::fct_inorder(`都道府県`),
+                `八地方区分` = forcats::fct_inorder(`八地方区分`),
+                `広域圏` = forcats::fct_inorder(`広域圏`),
+                `通俗的区分` = forcats::fct_inorder(`通俗的区分`))
+
+prefs
+```
+
+　  
+
+# Data Wrangling
+

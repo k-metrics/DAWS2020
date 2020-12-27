@@ -1,152 +1,93 @@
 データ分析勉強会2020
 ================
 
-## 次年度テーマ案
+## 分析大会用データについて
 
-　現在、声が出ているのは以下の通り。
+### 集計データ
 
-  - 統計・分析系
-      - 分析の基本（前処理～可視化・分析～レポーティング）
-          - 2018年度の焼き直し
-          - [『R言語ではじめるプログラミングとデータ分析』](https://logics-of-blue.com/r-programming-intro-book-support/)
-      - 時系列分析（古典的時系列モデル）
-          - [計量時系列分析（沖本本）](https://tjo.hatenablog.com/search?q=R%E3%81%A7%E8%A8%88%E9%87%8F%E6%99%82%E7%B3%BB%E5%88%97%E5%88%86%E6%9E%90+%E6%B2%96%E6%9C%AC)
-          - [ブックガイド](https://logics-of-blue.com/book-guide-time-series-analysis/)
-      - 前処理
-          - 『前処理大全』
-  - 機械学習系
-      - ディープラーニング（[G検定](https://www.jdla.org/business/certificate/)問題集）
-      - [Kaggle](https://www.kaggle.com/)関連
-  - 言語・環境系
-      - [Python](https://www.python.jp/)
+集計データは、[厚生労働省のオープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html)
+を用います。詳細は当該のページで確認してください。
 
-## 時間割案
+　
 
-　来年度のメトリクスコースは「演習チーム」と「実践チーム」の二本立て。演習チーム参加者は初学者が多いと思われるが、実践チーム参加者は基礎知識はあると思われる。  
-SQiP研究会からどの程度の参加するか不明ながら初学者が参加することを前提と考えておかないと常連との間の知識乖離が大きすぎる（今年度の反省）。  
-　しかし、初学者、中級者、上級者ではスキルも目的も異なるので、ひとくくりの構成ですべてを満たすことは難しい。となると切り離しやすい初学者セッションを設けるのが一つの手。そして、単なる聴講にしないために誰でも気軽に参加できるセッションを設ける。
+### 個票データ
 
-  - **初学者セッション**（30～60分）
-      - テーマセッションで使う技法などの概要説明
-      - 中級レベルの人がやることにより、より理解を深める
-  - **テーマセッション**（150～180分）
-      - 年度テーマに基づいたセッション（輪講制？）
-  - **ライトニングトーク**（30分）
-      - テーマにとらわれない事例紹介など（商業利用禁止）
-          - 初学者が学んだことをまとめ、発表することにより理解が深まる
-  - アフターセッション（～120分）
-      - 終了後の時間外フリーディスカッション兼懇親会
+個票データは、[Covid19 Japan](https://covid19japan.com/) が GitHub で公開している
+[JSON形式の個票データ（CC
+BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data)
+のデータを加工した以下の形式のデータ（CSV形式）を用います。ファイルは Google Drive に格納します。
 
-　あ、どっかで見たセッション構成…
+    ##    patientId       date gender detectedPrefecture patientStatus   knownCluster
+    ## 1         15 2020-01-15      M           Kanagawa     Recovered           <NA>
+    ## 2       TOK1 2020-01-24      M              Tokyo     Recovered           <NA>
+    ## 3       TOK2 2020-01-25      F              Tokyo     Recovered           <NA>
+    ## 4         18 2020-01-26      M              Aichi          <NA>           <NA>
+    ## 5         19 2020-01-28      M              Aichi  Hospitalized           <NA>
+    ## 6         20 2020-01-28      M               Nara          <NA>           <NA>
+    ## 7       HKD1 2020-01-28      F           Hokkaido    Discharged           <NA>
+    ## 8       OSK1 2020-01-29      F              Osaka  Hospitalized           <NA>
+    ## 9          1 2020-01-30      M        Unspecified    Discharged Charter Flight
+    ## 10        23 2020-01-30      M                Mie     Recovered           <NA>
+    ##    confirmedPatient    residence ageBracket pref region populationｓ
+    ## 1              TRUE         <NA>         30 <NA>   <NA>           NA
+    ## 2              TRUE Wuhan, China         40 <NA>   <NA>           NA
+    ## 3              TRUE Wuhan, China         30 <NA>   <NA>           NA
+    ## 4              TRUE Wuhan, China         40 <NA>   <NA>           NA
+    ## 5              TRUE Wuhan, China         40 <NA>   <NA>           NA
+    ## 6              TRUE         Nara         60 <NA>   <NA>           NA
+    ## 7              TRUE Wuhan, China         40 <NA>   <NA>           NA
+    ## 8              TRUE        Osaka         40 <NA>   <NA>           NA
+    ## 9              TRUE Wuhan, China         50 <NA>   <NA>           NA
+    ## 10             TRUE          Mie         50 <NA>   <NA>           NA
 
-## スケジュール案
+　  
+オリジナルデータのデータフォーマットについては
+[こちら](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md)
+を参照してください。加工データについては以下の通りです。
 
-　開催は基本的にSQiP研究会翌日の土曜日。第４土曜日は Bit & Innovation
-が利用できないため会場については今後調整。10周年記念合宿やる？
+| 列名（変量名）            | データ形式      | 説明                        |
+| ------------------ | ---------- | ------------------------- |
+| patientId          | String     | 陽性判定者の識別情報（厚生労働省のIDとは異なる） |
+| confirmedPatient   | boolean    | FALSEの場合は重複報告などの可能性あり     |
+| dateAnnounced      | YYYY-MM-DD | 陽性判定の報告日（検査日ではない）         |
+| ageBracket         | Numeric    | 陽性者の年代（非公開あり）             |
+| gender             | String     | 陽性者の性別（非公開あり）             |
+| residence          | String     | 陽性者の居住地（非公開あり）            |
+| detectedPrefecture | String     | 報告主体（都道府県ならびに空港検疫など）      |
+| patientStatus      | String     | 陽性者の状態                    |
+| knownCluster       | String     | 陽性者のクラスタに関する情報            |
+| pref               | String     | `detectedPrefecture` の日本語 |
+| region             | String     | 八地方区分                     |
+| population         | Numeric    | H30年時点の推計情報（単位は千人、出典：統計局） |
 
-| 回  |     日付     | 内容                          | 備考               |
-| :-: | :--------: | --------------------------- | ---------------- |
-| 1  |   4月25日    | R/RStudioの使い方、分析基礎          |                  |
-| 2  |   5月23日    | 環境構築（WSL2がリリースされればDocker推奨） | 初学者初参加           |
-| 3  |   6月27日    |                             | SQiP合宿（前日まで）     |
-| \- | 7月24日～8月9日 |                             | オリンピック           |
-| \- | 8月25日～9月6日 |                             | パラリンピック          |
-| 4  |   9月12日    |                             | SQiPシンポジウム（前日まで） |
-| 5  |   10月17日   |                             |                  |
-| 6  |   11月14日   |                             |                  |
-| 7  |   12月12日   |                             |                  |
-| 8  |    1月9日    |                             |                  |
-| 9  |   2月27日    |                             | SQiP成果発表会（前日）    |
+　  
+なお、オリジナルデータをRを用いて直接読み込みたい場合には、以下のコードを利用してください（表示の都合上、URLを分割しています）。
 
-### 参考）メトリクスコース・カリキュラム
+``` r
+library(tidyverse)
+library(jsonlite)
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
+  paste0("docs/patient_data/latest.json") %>% 
+  jsonlite::fromJSON()
+```
 
-　第36年度（2020年度）研究会パンフレットを基に作成。
+　
 
-| 回 |  月  | 演習チーム            | 実践チーム（3名程度） | 備考     |
-| :-: | :-: | ---------------- | ----------- | ------ |
-| 1 | 4月  | 概論、ＧＱＭ演習         | 実践テーマ計画書作成  |        |
-| 2 | 5月  | 欠陥・工数・規模の測定方法    | テーマ計画書レビュー  |        |
-| 3 | 6月  | データ可視化ワークショップ    | （同左）        | 合宿回    |
-| 臨 | 7月? | データハンドリング（VBA）   | レビュー・指導他    | オリンピック |
-| 4 | 9月  | SQiPシンポジウム       | （同左）        |        |
-| 5 | 10月 | R Commander、統計基礎 | レビュー・指導他    |        |
-| 6 | 11月 | 統計的検定            | レビュー・指導他    |        |
-| 7 | 12月 | 相関・回帰分析          | レビュー        |        |
-| 8 | 1月  | データ分析ワークショップ     | （同左）        |        |
-| 臨 | 2月? | 実践レポート発表会        | （同左）        |        |
-| 9 | 2月  | 分科会成果発表          | （同左）        |        |
+### その他データ
 
-## 結論（1月11日）
+その他、関連データは以下から入手可能です。
 
-テーマ：分析の基本（前処理～可視化・分析～レポーティング）
+  - [都道府県地方区分ならびに推計人口](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)
+  - [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
 
-  - [2018年度の焼き直し](https://k-metrics.github.io/2018dasg/) をベース
-  - [『R言語ではじめるプログラミングとデータ分析』](https://logics-of-blue.com/r-programming-intro-book-support/)
-    （補助テキスト）
+　
 
-セッション構成：
+## 注意事項
 
-**初学者セッション**（30～60分）
+  - 各データは予告なく内容などが変更される場合があります
+  - 各データはその内容を保証していません
+  - 各データの著作権などは原著作者にあります
 
-  - テーマセッションで使う技法などの概要説明
-  - 中級レベルの人がやることにより、より理解を深める
-
-**テーマセッション**（150～180分）
-
-  - 年度テーマに基づいたセッション（輪講制？）
-
-**ライトニングトーク**（30分）
-
-  - テーマにとらわれない事例紹介など（商業利用禁止）
-      - 初学者が学んだことをまとめ、発表することにより理解が深まる アフターセッション（～120分）
-  - 終了後の時間外フリーディスカッション兼懇親会
-
-初回担当：廣田・重村
-
-人数：～20名
-
-# 実施案
-
-## カリキュラム案
-
-最終的にRedmineのチケット分析（他の分析でも可）ができるような基本的な知識を2018年度のカリキュラムを焼き直し学びなおす。  
-2018年度の資料では不足点などもあるので追加が必要。
-
-| カリキュラム      | 概要                  | Tool, Package                   |
-| ----------- | ------------------- | ------------------------------- |
-| 分析環境の構築     | R/RStudio環境の構築      | R, RStudio                      |
-| Rの基本        | Rの基本的な文法            | Base R                          |
-| RStudioの使い方 | 各ペインの使い方、便利なショートカット | RStudio                         |
-| R Markdown  | R Markdownの概要と記述方法  | RStudio, rmarkdown              |
-| データインポート    | インポート方法、ポイント        | Base R, readr, readxl, pdftools |
-| スクレイピング     | インポート以外のデータ入手法      | rvest                           |
-| データハンドリング   | 分析可能なデータにする方法       | dplyr, tidyr, forcats, broom    |
-| 様々な可視化手法    | データを可視化する           | Base R, ggplot2                 |
-| 仮説検定・回帰分析   | データ分析の基本            | Base R                          |
-| 文字列処理       | 文字列処理と正規表現          | Base R, stringr                 |
-| モダンな繰り返し処理  | ループを使わない繰り返し処理      | Base R, purrr                   |
-
-## 体制案
-
-資料・説明：運営メンバー（初～中級者）を中心とした希望者  
-監修：運営メンバー
-
-# 利用環境
-
-　R/RStudio を利用するのがベストと考えられるが、個々人の PC 環境により様々な不具合が生じることが多いので、最初は [Google
-Colaboratory（以降、Google Colab）](https://colab.research.google.com/?hl=ja)
-の利用を推奨する。  
-　Google Colab は Google アカウントを持っていれば誰でも無料で使えるブラウザ版 Jupyter Notebook
-である。インストールが不要で `tidyverse`
-パッケージもデフォルトで入っているので初学者向けの環境としては敷居が低く全員が同一環境で演習できる。
-
-## about Google Colab
-
-　Google Colab は基本的に Python 用の環境だが、R のランタイムが標準で用意されているのでちょっとした手間で Jupyter
-Notebook 上で R が使えるようになる。ただし、Pyhotn 環境で使える Google Drive のマウント機能は R
-環境では使えないのでデータファイルなどは逐次アップロードする必要がある。  
-　また、サーバ側の環境は利用者がシェアして使うため 90 分でセッションが切れ、12時間でインスタンスが無効になるという制限があるものの
-Google アカウントを持っていることが前提なので Google Drive による演習ファイルの共有などのコラボレーションが期待できる。  
 　
 
 -----
