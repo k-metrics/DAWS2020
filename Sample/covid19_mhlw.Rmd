@@ -64,7 +64,8 @@ PCR検査で陽性が確定した「陽性者数」のデータ。厚生労働�
 死亡者数のデータは、なぜか累計データだけが公開されている。
 ```{r}
 "https://www.mhlw.go.jp/content/death_total.csv" %>% 
-  readr::read_csv(locale = readr::locale(encoding = "CP932"))
+  readr::read_csv()
+  # readr::read_csv(locale = readr::locale(encoding = "CP932"))
 ```
 
 　  
@@ -124,7 +125,8 @@ datetime <- lubridate::as_date(max(df_mhlw$date), tz = "Japan")
 陽性者数とは逆に短日の数値を求める。
 ```{r}
 dead_mhlw <- "https://www.mhlw.go.jp/content/death_total.csv" %>% 
-  readr::read_csv(locale = readr::locale(encoding = "CP932")) %>% 
+  readr::read_csv() %>% 
+  # readr::read_csv(locale = readr::locale(encoding = "CP932")) %>% 
   dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
   dplyr::mutate(cum_dead = as.integer(`死亡者数`),
@@ -367,7 +369,7 @@ x_mhlw %>%
 　  
 
 ```{r}
-scale_axis <- 50
+scale_axis <- 1
 
 x_mhlw %>% 
   dplyr::filter(date != lubridate::as_date("2020-09-29")) %>% 
@@ -375,10 +377,10 @@ x_mhlw %>%
   dplyr::mutate(ma = zoo::rollmeanr(n, k = 7L, na.pad = TRUE),
                 pcr_ma = zoo::rollmeanr(pcr, k = 7L, na.pad = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = pcr / scale_axis), stat = "identity",
+                      width = 1.0, alpha = 0.25, fill = "dark blue") +
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
                       width = 1.0, alpha = 0.25, fill = "dark green") +
-    ggplot2::geom_bar(ggplot2::aes(y = pcr / scale_axis), stat = "identity",
-                      width = 1.0, alpha = 0.5, fill = "dark blue") +
     ggplot2::geom_line(ggplot2::aes(y = ma), colour = "dark green") + 
     ggplot2::geom_line(ggplot2::aes(y = pcr_ma / scale_axis), color = "dark blue") +
     ggplot2::labs(title = paste0("陽性者数と検査実施人数の推移（単日） @", datetime),
