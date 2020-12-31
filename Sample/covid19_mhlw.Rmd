@@ -64,7 +64,7 @@ PCR検査で陽性が確定した「陽性者数」のデータ。厚生労働�
 死亡者数のデータは、なぜか累計データだけが公開されている。
 ```{r}
 "https://www.mhlw.go.jp/content/death_total.csv" %>% 
-  readr::read_csv()
+  readr::read_csv(locale = readr::locale(encoding = "CP932"))
 ```
 
 　  
@@ -124,7 +124,7 @@ datetime <- lubridate::as_date(max(df_mhlw$date), tz = "Japan")
 陽性者数とは逆に短日の数値を求める。
 ```{r}
 dead_mhlw <- "https://www.mhlw.go.jp/content/death_total.csv" %>% 
-  readr::read_csv() %>% 
+  readr::read_csv(locale = readr::locale(encoding = "CP932")) %>% 
   dplyr::mutate(date = lubridate::as_date(`日付`)) %>% 
   tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
   dplyr::mutate(cum_dead = as.integer(`死亡者数`),
