@@ -1,0 +1,168 @@
+---
+title: "Covid19 Daily with Google forecast"
+output:
+  html_document:
+    code_folding : hide
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
+require(tidyverse)
+require(jsonlite)
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: covid19japan.com"
+```
+
+
+## 都道府県データ
+```{r}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>%
+# prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/b4c9a333fb4b54e11c8ae993b186bf3185467393/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(japan_prefecture_code = paste0("JP-", `コード`)) %>% 
+  dplyr::select(japan_prefecture_code, prefecture_name = pref, pref = `都道府県`,
+                region = `八地方区分`,pops = `推計人口`) %>% 
+  dplyr::mutate(japan_prefecture_code = forcats::fct_inorder(japan_prefecture_code),
+                pref = forcats::fct_inorder(pref),
+                region = forcats::fct_inorder(region),
+                pops = as.integer(pops))
+prefs
+```
+
+## Covid19Japanデータ
+```{r}
+df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON() %>% 
+  dplyr::select(patientId, date = dateAnnounced, gender,
+                pref = detectedPrefecture, patientStatus, knownCluster,
+                confirmedPatient,
+                ageBracket,
+                deceasedDate, deceasedReportedDate) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(date = lubridate::as_date(date),
+                gender = forcats::as_factor(gender),
+                pref = stringr::str_to_lower(pref),
+                patientStatus = forcats::as_factor(patientStatus),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+                ageBracket = forcats::as_factor(ageBracket),
+                deceasedDate = lubridate::as_date(deceasedDate),
+                deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
+  dplyr::left_join(prefs, by = c("pref" = "prefecture_name")) %>% 
+  dplyr::select(-pref) %>% 
+  dplyr::rename(pref = pref.y)
+df
+```
+
+## Google予測データ
+```{r}
+fn <- "https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::select(pref = prefecture_name_kanji, date = target_prediction_date,
+                fcum = cumulative_confirmed) %>% 
+  tidyr::drop_na() %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(fn = purrr::map(data, ~ lagdiff(.$fcum))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::filter(date > min(date)) %>% 
+  dplyr::select(-fcum)
+fn
+```
+
+## Google予測データ
+```{r}
+forecast <- "https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(prefecture_name = stringr::str_to_lower(prefecture_name)) %>% 
+  dplyr::left_join(prefs, by = c("prefecture_name")) %>% 
+  dplyr::select(code = japan_prefecture_code.x, pref, region, pops,
+                date = target_prediction_date,
+                fcum = cumulative_confirmed,
+                fcum_q0025 = cumulative_confirmed_q0025,
+                fcum_q0975 = cumulative_confirmed_q0975) %>% 
+  dplyr::left_join(fn, by = c("pref", "date")) %>% 
+  dplyr::mutate(n = NA_integer_, diff = NA_integer_, cum = NA_integer_,
+                ma7 = NA_real_, ma28 = NA_real_) %>% 
+  dplyr::select(code, pref, region, pops, date, n, diff, cum, ma7, ma28,
+                fn, fcum, fcum_q0025, fcum_q0975) %>% 
+  dplyr::arrange(code, date) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(pref)) %>% 
+  tidyr::drop_na(fn)
+
+forecast
+```
+
+## 描画用データ
+```{r}
+x <- df %>% 
+  dplyr::group_by(date, pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = pref, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "pref", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::group_by(pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n)),
+                ma28 = purrr::map(data, ~ ma28(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs, ., by = c("pref")) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(pref)) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::rename(code = japan_prefecture_code) %>%
+  dplyr::select(-prefecture_name) %>% 
+  dplyr::mutate(fn = NA_real_, fcum = NA_real_,
+                fcum_q0025 = NA_real_, fcum_q0975 = NA_real_)
+x
+```
+
+## 可視化
+```{r, fig.height=30, fig.width=10}
+sec_scale <- 100
+ncol <- 3
+
+forecast %>% 
+  dplyr::filter(date > max(x$date)) %>%
+  dplyr::bind_rows(x) %>% 
+  dplyr::rename(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.5, width = 1.0) + 
+    ggplot2::geom_bar(ggplot2::aes(y = fn, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key),
+                                    linetype = "solid") +
+    ggplot2::geom_line(ggplot2::aes(y = fcum / sec_scale, colour = key),
+                                    linetype = "solid", alpha = 0.5, size = 0.35) +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::theme(legend.position = 'none')
+```
+
+
+
