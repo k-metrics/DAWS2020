@@ -81,13 +81,12 @@ fn <- "https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_2
   readr::read_csv() %>% 
   dplyr::select(pref = prefecture_name_kanji, date = target_prediction_date,
                 fcum = cumulative_confirmed) %>% 
-  tidyr::drop_na() %>% 
   dplyr::arrange(date) %>% 
   dplyr::group_by(pref) %>% 
   tidyr::nest() %>% 
   dplyr::mutate(fn = purrr::map(data, ~ lagdiff(.$fcum))) %>% 
   tidyr::unnest() %>% 
-  dplyr::filter(date > min(date)) %>% 
+  tidyr::drop_na() %>%
   dplyr::select(-fcum)
 fn
 ```
