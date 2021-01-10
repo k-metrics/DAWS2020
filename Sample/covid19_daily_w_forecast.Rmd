@@ -77,6 +77,12 @@ df
 
 ## Google予測データ
 ```{r}
+"https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
+  readr::read_csv() %>% 
+  readr::write_csv(paste0("./Covid19/Google_Forecasts_", lubridate::today(), ".csv"))
+```
+
+```{r}
 fn <- "https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
   readr::read_csv() %>% 
   dplyr::select(pref = prefecture_name_kanji, date = target_prediction_date,
