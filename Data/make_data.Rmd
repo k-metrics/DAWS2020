@@ -39,4 +39,16 @@ x %>%
   readr::write_csv(paste0("./covid19japan_", lubridate::today(), ".csv"))
 ```
 
+```{r}
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON() %>% 
+  readr::write_csv(paste0("./covid19japan_", lubridate::today(), "_json.csv"))
+
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  download.file(paste0("./covid19japan_", lubridate::today(), ".json"))
+
+"https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
+  download.file(paste0("./Google_Forecast_", lubridate::today(), ".csv"))
+```
+
 Data File Created: `r lubridate::now()`　  
