@@ -149,8 +149,7 @@ population         | Numeric    | H30年時点の推計人口（単位は千人�
 ```{r, echo=TRUE, eval=FALSE}
 library(tidyverse)
 library(jsonlite)
-"https://raw.githubusercontent.com/reustle/covid19japan-data/master/" %>% 
-  paste0("docs/patient_data/latest.json") %>% 
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
   jsonlite::fromJSON()
 ```
 
@@ -164,20 +163,23 @@ library(jsonlite)
 ### その他データ
 関連データは以下から入手可能です。その他、任意のデータを利用することも可能です。
 
+* [Google COVID-19 感染予測(日本版)](https://datastudio.google.com/u/0/reporting/8224d512-a76e-4d38-91c1-935ba119eb8f/page/ncZpB?s=nXbF2P6La2M)
 * [都道府県地方区分ならびに推計人口](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)
 * [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
 
 　  
 
-## 注意事項
+## 注意事項・免責事項
 
-* 各データは予告なく内容などが変更される場合があります
+* 各データは予告なく内容が変更される場合があります
 * 各データはその内容を保証していません
-* 各データの著作権などは原著作者にあります
+* 各データの著作権は原著作者にあります
+* 各データを利用したことにより利用者または第三者に損害などが発生しても当方は損害賠償その他一切の責任を負いません
+
 
 　  
 
 Enjoy!  
 
 ---
-CC 4.0 BY-NC-SA, Sampo Suzuki
+[CC 4.0 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki
