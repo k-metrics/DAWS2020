@@ -182,7 +182,7 @@ beds_by_pref
 ### 新型コロナ関連ニュース
 新型コロナ関連のニュース
 ```{r}
-news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/3509f796bbfb0d86b03813d75b12a91c234f98bd/covid19_news.csv" %>% 
+news <- "https://gist.githubusercontent.com/k-metrics/76fea197fa32466a2f99ff59f721b98a/raw/b1f478f06486afe8eac2e0ce4c6708571ef57935/covid19_news.csv" %>% 
     readr::read_csv() %>% 
   dplyr::filter(area == "日本")
 news
@@ -371,7 +371,7 @@ source("https://raw.githubusercontent.com/logics-of-blue/website/master/010_fore
 
 sec_scale <- 100
 
-ylim <- 5000L
+ylim <- 7000L
 
 emergency <- news %>% 
   dplyr::filter(category == "緊急事態")
@@ -392,24 +392,31 @@ x_by_all %>%
                 wday = dplyr::if_else(wday > 5, TRUE, FALSE),
                 wday = dplyr::if_else(hday | wday, ylim,  NA_integer_)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    # 土日・祝祭日
     # ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
-    #                   fill = "red", alpha = 0.1) + 
-    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
-    #                     colour = "dark blue", linetype = "dashed", size = 0.15) +
-    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
-    #                           size = 2.0, data = emergency) +
+    #                   fill = "red", alpha = 0.1) +
+    # 緊急事態宣言
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+                        colour = "red", linetype = "dashed", size = 0.15) +
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 7000, label = news),
+                              colour = "red", size = 2.0, data = emergency) +
+    # GoTo開始
     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
                         colour = "magenta", linetype = "dashed", size = 0.25) + 
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
-                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 3500, label = news),
                               size = 2.5, data = gotos, colour = "magenta") + 
+    # GoTo一時停止
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 4500, label = news),
                               size = 2.5, data = gotoe, colour = "dark cyan") + 
+    # 単日
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
                       fill = "dark gray", alpha = 1.0) + 
+    # 移動平均
     ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
                        colour = "dark green", size = 0.5) + 
+    # 累計
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
                        colour = "dark green", size = 1.0) +
     ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
@@ -487,14 +494,16 @@ x_by_region %>%
 ```{r}
 x_by_region %>% 
   ggplot2::ggplot(ggplot2::aes(x = date, y = ma7, colour = region)) + 
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
-                        colour = "magenta", linetype = "dashed", size = 0.25) + 
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1200, label = news),
-                              size = 2.5, data = gotos, colour = "magenta") + 
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
-                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1000, label = news),
-                              size = 2.5, data = gotoe, colour = "dark cyan") + 
+    # GoTo開始
+    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
+    #                     colour = "magenta", linetype = "dashed", size = 0.25) + 
+    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1200, label = news),
+    #                           size = 2.5, data = gotos, colour = "magenta") + 
+    # GoTo一時停止
+    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+    #                     colour = "dark cyan", linetype = "dashed", size = 0.25) + 
+    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1000, label = news),
+    #                           size = 2.5, data = gotoe, colour = "dark cyan") + 
     ggplot2::geom_line(size = 1) +
     ggplot2::theme(legend.position = 'none') +
     ggplot2::labs(title = paste0("【地方別】移動平均（7日） @", datetime),
