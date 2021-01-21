@@ -148,6 +148,21 @@ library(jsonlite)
 
 　
 
+### データファイルについて
+
+`Data`フォルダ内にあるデータファイルは以下の四種類です。各ファイルの著作権は原著作者にあります。現状では手動トリガーで取得しているために取得時間はバラバラです（取得後に更新されている可能性があります）。
+
+| ファイル名                              | 内容                    |
+| ---------------------------------- | --------------------- |
+| covid19japan\_YYYY-MM-DD.csv       | 上述の加工済個票データ           |
+| covid19japan\_YYYY-MM-DD.json      | Covid19Japanのオリジナルデータ |
+| covid19japan\_YYYY-MM-DD\_json.csv | 上記をCSV形式に変換したもの       |
+| Google\_Forecast\_YYYY-MM-DD.csv   | Googleの予測データ          |
+
+`YYYY-MM-DD`は取得日
+
+　
+
 ### その他データ
 
 関連データは以下から入手可能です。その他、任意のデータを利用することも可能です。
@@ -174,4 +189,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki
+Sampo Suzuki (Update: 2021-01-21 22:40:15)
