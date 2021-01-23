@@ -93,8 +93,25 @@ PCR検査の実施件数              | 暫定値であり後日変更される�
 　  
 
 ### 個票データ
-個票データは、[Covid19 Japan](https://covid19japan.com/) が GitHub で公開している [JSON形式の個票データ（CC BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data) のデータを加工した以下の形式のデータ（CSV形式・UTF-8）を用います。ファイルは Google Drive にも格納します。
+個票データは、[Covid19 Japan](https://covid19japan.com/) が GitHub で公開している [JSON形式の個票データ（CC BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data) を使います。ファイルとして本リポジトリの `Data` フォルダ内に格納してあります。  
+`Data`フォルダ内のファイルは以下の四種類です。目的に応じて選択してください、なお、各ファイルの著作権は原著作者にあります。  
+　  
+現状では手動トリガーにて取得しているために取得時間はバラバラです（取得後に更新されている可能性があります）。  
 
+ファイル名                       | 内容                           | Encode
+---------------------------------|--------------------------------|--------
+covid19japan_YYYY-MM-DD.csv      | 加工済個票データ               | UTF-8
+covid19japan_YYYY-MM-DD.json     | Covid19Japanのオリジナルデータ | UTF-8
+covid19japan_YYYY-MM-DD_json.csv | 上記をCSV形式に変換したもの    | UTF-8
+Google_Forecast_YYYY-MM-DD.csv   | Googleの予測データ             | UTF-8
+
+
+`YYYY-MM-DD`は取得日
+
+　  
+
+#### 加工済個票データ
+オリジナルのJSONデータに都道府県関連情報を連結し、必要最低限の項目に絞ったデータです。連結処理にハードルを感じている方はこの加工済個票データを利用してください。
 ```{r, message=FALSE, echo=FALSE}
 df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
   jsonlite::fromJSON()
@@ -139,7 +156,7 @@ x %>%
 ```
 
 　  
-オリジナルデータのデータフォーマットについては [こちら](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参照してください。加工データのフォーマットは下記の通りです。  
+加工済個票のフォーマットは下記の通りです。  
 
 列名（変量名）     | データ形式 | 説明
 -------------------|------------|----------------------------------------------
@@ -157,7 +174,7 @@ region             | String     | 都道府県の八地方区分名
 population         | Numeric    | H30年時点の推計人口（単位は千人、出典：統計局）
 
 　  
-なお、オリジナルデータをRを用いて直接読み込みたい場合には、以下のコードを利用してください（表示の都合上、URLを分割しています）。
+オリジナルデータのデータフォーマットについては [こちら](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参照してください。なお、オリジナルデータをRを用いて直接読み込みたい場合には、以下のコードを利用してください。
 ```{r, echo=TRUE, eval=FALSE}
 library(tidyverse)
 library(jsonlite)
@@ -165,6 +182,8 @@ library(jsonlite)
   jsonlite::fromJSON()
 ```
 
+　  
+都道府県地方区分などのデータは下記のリンクから参照してください。  
 　  
 
 #### 個票データを集計する際のポイント
@@ -250,28 +269,13 @@ library(jsonlite)
 
 　  
 
-### データファイルについて
-`Data`フォルダ内にあるデータファイルは以下の四種類です。各ファイルの著作権は原著作者にあります。現状では手動トリガーで取得しているために取得時間はバラバラです（取得後に更新されている可能性があります）。  
-
-ファイル名                       | 内容
----------------------------------|--------------------------------
-covid19japan_YYYY-MM-DD.csv      | 上述の加工済個票データ
-covid19japan_YYYY-MM-DD.json     | Covid19Japanのオリジナルデータ
-covid19japan_YYYY-MM-DD_json.csv | 上記をCSV形式に変換したもの
-Google_Forecast_YYYY-MM-DD.csv   | Googleの予測データ
-
-
-`YYYY-MM-DD`は取得日
-
-　  
-
 ### Tips
 知っておくと便利な関数。
 　  
 
-#### n日移動平均を求める
+#### m日移動平均を求める
 ```{r, eval=FALSE}
-zoo::rollmeanr(n, k = nL, na.pad = TRUE)
+zoo::rollmeanr(n, k = mL, na.pad = TRUE)
 ```
 
 　  
@@ -283,7 +287,7 @@ n - dplyr::lag(n, default = 0L)
 
 　  
 
-#### 日付を補完する
+#### 日付データを補完する
 ```{r, eval=FALSE}
 tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"))
 ```
@@ -291,7 +295,7 @@ tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"))
 　  
 
 ### その他データ
-関連データは以下から入手可能です。その他、任意のデータを利用することも可能です。
+関連データは以下から入手可能です。その他、任意のデータを利用しても構いません。
 
 * [Google COVID-19 感染予測(日本版)](https://datastudio.google.com/u/0/reporting/8224d512-a76e-4d38-91c1-935ba119eb8f/page/ncZpB?s=nXbF2P6La2M)
 * [都道府県地方区分ならびに推計人口](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)
