@@ -180,7 +180,9 @@ Google_Forecast_YYYY-MM-DD.csv   | Googleの予測データ
 
 * [Google COVID-19 感染予測(日本版)](https://datastudio.google.com/u/0/reporting/8224d512-a76e-4d38-91c1-935ba119eb8f/page/ncZpB?s=nXbF2P6La2M)
 * [都道府県地方区分ならびに推計人口](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b)
-* [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
+* [新型コロナウイルス対策ダッシュボード](https://www.stopcovid19.jp/)
+    * [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
+* [新型コロナウィルス感染速報](https://covid-2019.live/)
 
 　  
 
