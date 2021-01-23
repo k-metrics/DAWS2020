@@ -500,10 +500,10 @@ x_by_region %>%
     # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1200, label = news),
     #                           size = 2.5, data = gotos, colour = "magenta") + 
     # GoTo一時停止
-    # ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
-    #                     colour = "dark cyan", linetype = "dashed", size = 0.25) + 
-    # ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 1000, label = news),
-    #                           size = 2.5, data = gotoe, colour = "dark cyan") + 
+    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+                        colour = "dark cyan", linetype = "dashed", size = 0.25) +
+    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 2500, label = news),
+                              size = 2.5, data = gotoe, colour = "dark cyan") +
     ggplot2::geom_line(size = 1) +
     ggplot2::theme(legend.position = 'none') +
     ggplot2::labs(title = paste0("【地方別】移動平均（7日） @", datetime),
