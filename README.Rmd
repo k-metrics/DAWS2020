@@ -7,6 +7,18 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 
 require(tidyverse)
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
 ```
 
 ## 分析大会について
@@ -87,13 +99,13 @@ PCR検査の実施件数              | 暫定値であり後日変更される�
 df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
   jsonlite::fromJSON()
 
-prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/9262c36b0740edd575e9f0292dad61c9cce269be/pref_utf8.csv" %>% 
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/f4ea87f429e1ca28627feff94b67c8b2432aee59/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
   dplyr::rename(pcode = `コード`) %>% 
   dplyr::mutate(pref = stringr::str_to_title(pref),
                 pcode = forcats::fct_inorder(pcode),
                 fct_pref = forcats::fct_inorder(pref) ,
-                `都道府県` = forcats::fct_inorder(`都道府県`),
+                # `都道府県` = forcats::fct_inorder(`都道府県`),
                 `八地方区分` = forcats::fct_inorder(`八地方区分`),
                 `広域圏` = forcats::fct_inorder(`広域圏`),
                 `通俗的区分` = forcats::fct_inorder(`通俗的区分`),
@@ -156,7 +168,85 @@ library(jsonlite)
 　  
 
 #### 個票データを集計する際のポイント
-集計データは一般的に個票データを集計したものですが、個票データが無い部分は集計ができませんので該当項は欠落となります。受け取る側が「個票がないから（＝個票の集計数がゼロだから）記録として出てこない」と読み取ってくれるだろうという**暗黙の了解**が成り立っていれば意識的に欠落を補完する処理ができますが、このような欠落（ここでは暗黙の欠落と呼びます）が出ることを意識せずに放置したまま、なんらかの計算を行うと意図した結果と異なる結果になる可能性があります。個票データを集計する場合は、この暗黙の欠落に注意してください。
+集計データは一般的に個票データを集計したものですが、個票データが無い部分は集計ができませんので該当項は欠落となります。受け取る側が「個票がないから（＝個票の集計数がゼロだから）記録として出てこない」と読み取ってくれるだろうという暗黙の了解が成り立っていれば意識的に欠落を補完する処理ができますが、このような欠落（ここでは**暗黙の欠落**と呼びます）が出ることを意識せずに放置したまま、なんらかの計算を行うと意図した結果と異なる結果になる可能性があります。個票データを集計する場合は、この暗黙の欠落に注意してください。
+
+　  
+
+##### 暗黙の欠落を無視した場合
+単純に都道府県単位で累計や移動平均を計算するとどうなるかを考える必要があります。
+```{r, echo=FALSE, message=FALSE}
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON() %>% 
+  dplyr::select(patientId, date = dateAnnounced, gender,
+                pref = detectedPrefecture, patientStatus, knownCluster,
+                confirmedPatient,
+                ageBracket,
+                deceasedDate, deceasedReportedDate) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(date = lubridate::as_date(date),
+                gender = forcats::as_factor(gender),
+                # pref = stringr::str_to_lower(pref),
+                patientStatus = forcats::as_factor(patientStatus),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+                ageBracket = forcats::as_factor(ageBracket),
+                deceasedDate = lubridate::as_date(deceasedDate),
+                deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
+  dplyr::left_join(prefs, by = c("pref")) %>% 
+  dplyr::select(-pref) %>%
+  dplyr::rename(pref = `都道府県`) %>%
+  dplyr::group_by(date, pref) %>% 
+  dplyr::summarise(`陽性者数` = n(), `累計` = cumsum(`陽性者数`),
+                   `移動平均` = ma7(`陽性者数`), `前日差` = lagdiff(`陽性者数`)) %>% 
+  dplyr::ungroup() %>% 
+  head() %>% knitr::kable()
+```
+
+　  
+
+##### 暗黙の欠落を処置した場合
+```{r, echo=FALSE, message=FALSE}
+"https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON() %>% 
+  dplyr::select(patientId, date = dateAnnounced, gender,
+                pref = detectedPrefecture, patientStatus, knownCluster,
+                confirmedPatient,
+                ageBracket,
+                deceasedDate, deceasedReportedDate) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(date = lubridate::as_date(date),
+                gender = forcats::as_factor(gender),
+                # pref = stringr::str_to_lower(pref),
+                patientStatus = forcats::as_factor(patientStatus),
+                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+                ageBracket = forcats::as_factor(ageBracket),
+                deceasedDate = lubridate::as_date(deceasedDate),
+                deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
+  dplyr::left_join(prefs, by = c("pref")) %>% 
+  dplyr::select(-pref) %>%
+  dplyr::rename(pref = `都道府県`) %>%
+  dplyr::group_by(date, pref) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_wider(names_from = pref, values_from = n, values_fill = 0L) %>% 
+  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "pref", values_to = "n") %>% 
+  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::mutate(pref = dplyr::if_else(pref == "NA", "空港検疫", pref)) %>% 
+  dplyr::group_by(pref) %>% 
+  tidyr::nest() %>% 
+  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),
+                cum = purrr::map(data, ~ cumsum(.$n)),
+                ma7 = purrr::map(data, ~ ma7(.$n)),
+                ma28 = purrr::map(data, ~ ma28(.$n))) %>% 
+  tidyr::unnest() %>% 
+  dplyr::left_join(prefs, by = c("pref" = "都道府県")) %>% 
+  dplyr::mutate(pref = forcats::fct_inorder(pref)) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::select(date, pref, `陽性者数` = n, `累計` = cum, `移動平均` = ma7,
+                `前日差` = diff) %>% 
+  head() %>% knitr::kable()
+  # dplyr::select(-pref.y, -fct_pref, region = `八地方区分`)
+```
 
 　  
 
@@ -172,6 +262,31 @@ Google_Forecast_YYYY-MM-DD.csv   | Googleの予測データ
 
 
 `YYYY-MM-DD`は取得日
+
+　  
+
+### Tips
+知っておくと便利な関数。
+　  
+
+#### n日移動平均を求める
+```{r, eval=FALSE}
+zoo::rollmeanr(n, k = nL, na.pad = TRUE)
+```
+
+　  
+
+#### 前日差を求める
+```{r, eval=FALSE}
+n - dplyr::lag(n, default = 0L)
+```
+
+　  
+
+#### 日付を補完する
+```{r, eval=FALSE}
+tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"))
+```
 
 　  
 
