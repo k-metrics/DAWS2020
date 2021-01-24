@@ -196,33 +196,41 @@ library(jsonlite)
 
 　
 
-### Tips
+<!-- ### Tips -->
 
-知っておくと便利な関数。 　
+<!-- 知っておくと便利な関数。 -->
 
-#### m日移動平均を求める
+<!-- 　   -->
 
-``` r
-zoo::rollmeanr(n, k = mL, na.pad = TRUE)
-```
+<!-- #### m日移動平均を求める -->
 
-　
+<!-- ```{r, eval=FALSE} -->
 
-#### 前日差を求める
+<!-- zoo::rollmeanr(n, k = mL, na.pad = TRUE) -->
 
-``` r
-n - dplyr::lag(n, default = 0L)
-```
+<!-- ``` -->
 
-　
+<!-- 　   -->
 
-#### 日付データを補完する
+<!-- #### 前日差を求める -->
 
-``` r
-tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"))
-```
+<!-- ```{r, eval=FALSE} -->
 
-　
+<!-- n - dplyr::lag(n, default = 0L) -->
+
+<!-- ``` -->
+
+<!-- 　   -->
+
+<!-- #### 日付データを補完する -->
+
+<!-- ```{r, eval=FALSE} -->
+
+<!-- tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) -->
+
+<!-- ``` -->
+
+<!-- 　   -->
 
 ### その他データ
 
@@ -252,4 +260,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki (Update: 2021-01-24 00:19:43)
+Sampo Suzuki (Update: 2021-01-24 22:58:01)
