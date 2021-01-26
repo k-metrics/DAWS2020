@@ -178,8 +178,10 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
     ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
     patientStatus = forcats::fct_explicit_na(patientStatus,
                                              na_level = "Unknown")
-  ) %>% 
-  dplyr::filter(date < lubridate::today())
+  )
+
+# %>% 
+#   dplyr::filter(date < lubridate::today())
 
 df
 
@@ -414,6 +416,11 @@ cluster_daily
 
 ### 全国集計
 ```{r}
+japan_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
+```{r}
 subset <- japan_daily
 title <- "【全国】陽性者数(単日)"
 xlab <- ""
@@ -459,6 +466,11 @@ subset %>%
 　  
 
 ### 地方区分別集計
+```{r}
+region_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
 ```{r}
 subset <- region_daily %>% dplyr::mutate(key = region, y = n)
 title <- "【地方別】陽性者数(単日)"
@@ -583,6 +595,11 @@ subset %>%
 　  
 
 ### 都道府県別
+```{r}
+pref_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
 ```{r}
 subset <- pref_daily %>% dplyr::mutate(key = pref, y = n)
 title <- "【都道府県別】陽性者数(単日)"
@@ -755,6 +772,51 @@ subset %>%
 ```
 
 　  
+
+# 比較
+
+## 厚生労働省オープンデータ
+```{r}
+mhlw_daily <- "https://www.mhlw.go.jp/content/pcr_positive_daily.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(date = `日付`, n = `PCR 検査陽性者数(単日)`) %>% 
+  dplyr::mutate(date = lubridate::as_date(date), n = as.integer(n))
+
+mhlw_daily
+```
+
+## NHK集計データ
+```{r}
+nhk_daily <- "https://www3.nhk.or.jp/n-data/opendata/coronavirus/nhk_news_covid19_prefectures_daily_data.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(date = `日付`, n = `各地の感染者数_1日ごとの発表数`) %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(date = lubridate::as_date(date), n = as.integer(n))
+
+nhk_daily
+```
+
+
+## 比較
+```{r}
+japan_daily %>% 
+  dplyr::select(date, n) %>% 
+  dplyr::left_join(mhlw_daily, by = "date") %>% 
+  dplyr::left_join(nhk_daily, by = "date") %>% 
+  dplyr::rename(c19j = n.x, mhlw = n.y, nhk = n) %>%
+  # print() %>% 
+  dplyr::mutate(c19j_mhlw = c19j - mhlw,
+                c19j_nhk = c19j - nhk,
+                mhlw_nhl = mhlw - nhk) %>% 
+  dplyr::select(-c19j, -mhlw, -nhk) %>% 
+  # print() %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "name", values_to = "diff") %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = diff, colour = name)) + 
+    ggplot2::geom_line() 
+```
+
 
 
 <!-- ## Google予測データ -->
