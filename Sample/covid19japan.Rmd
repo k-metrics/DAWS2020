@@ -32,6 +32,36 @@ ma28 <- function(n) {
   zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
 }
 
+ma <- function(n, k = 7L) {
+  zoo::rollmeanr(n, k = k, na.pad = TRUE)
+}
+
+# Non-standard evaluation
+# https://www.marketechlabo.com/r-function-using-nse/
+daily_aggregate <- function(df, date, key) {
+  date <- dplyr::enquo(date)
+  key <- dplyr::enquo(key)
+  
+  df %>% 
+    dplyr::group_by(!!date, !!key) %>% 
+    dplyr::summarise(n = dplyr::n()) %>% 
+    dplyr::ungroup() %>% 
+    tidyr::complete(
+      date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+      !!key, fill = list(n = 0L)
+    ) %>% 
+    dplyr::group_by(!!key) %>% 
+    tidyr::nest() %>%
+    dplyr::mutate(
+      diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+      cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+      ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+      ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+    ) %>% 
+    tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+    return()
+}
+
 subtitle <- paste0("Generated @", lubridate::now())
 caption <- "Data Source: covid19japan.com"
 ```
@@ -39,24 +69,50 @@ caption <- "Data Source: covid19japan.com"
 
 # 関数定義ほか
 ```{r, eval=FALSE}
-lagdiff <- function(n) {
+lagdiff <- function(n) {                      # 前日差を求める関数
   n - dplyr::lag(n, default = 0L)
 }
 
-ma7 <- function(n) {
+ma7 <- function(n) {                          # 移動平均(7日)を求める関数
   zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
 }
 
-ma28 <- function(n) {
+ma28 <- function(n) {                         # 移動平均(28日)を求める関数
   zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+daily_aggregate <- function(df, date, key) {  # 日時集計を行う関数
+  date <- dplyr::enquo(date)
+  key <- dplyr::enquo(key)
+  
+  df %>% 
+    dplyr::group_by(!!date, !!key) %>% 
+    dplyr::summarise(n = dplyr::n()) %>% 
+    dplyr::ungroup() %>% 
+    tidyr::complete(
+      date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+      !!key, fill = list(n = 0L)
+    ) %>% 
+    dplyr::group_by(!!key) %>% 
+    tidyr::nest() %>%
+    dplyr::mutate(
+      diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+      cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+      ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+      ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+    ) %>% 
+    tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+    return()
 }
 
 subtitle <- paste0("Generated @", lubridate::now())
 caption <- "Data Source: covid19japan.com"
 ```
 
+　  
 
-# Import
+# Import & Tidy
+個票データの集計に限らず、データをインポートした際には目的に応じて各変量（変数）の変数型を変更します。特に水準ごとに層別処理を行いたい場合には因子型に変換しておくと便利です。また、結合したいデータと名称や体系を合わせておくこともポイントです。
 
 　  
 
@@ -64,13 +120,25 @@ caption <- "Data Source: covid19japan.com"
 ```{r}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/f4ea87f429e1ca28627feff94b67c8b2432aee59/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
-  dplyr::mutate(japan_prefecture_code = paste0("JP-", `コード`)) %>% 
-  dplyr::select(japan_prefecture_code, prefecture_name = pref, pref = `都道府県`,
-                region = `八地方区分`,pops = `推計人口`) %>% 
-  dplyr::mutate(japan_prefecture_code = forcats::fct_inorder(japan_prefecture_code),
-                pref = forcats::fct_inorder(pref),
-                region = forcats::fct_inorder(region),
-                pops = as.integer(pops))
+  dplyr::mutate(
+    # Googleの予測データと結合するためにコード体系を合わせる
+    japan_prefecture_code = paste0("JP-", `コード`)
+  ) %>% 
+
+  dplyr::select(
+    # Googleの予測データと結合するために名称を変更する
+    japan_prefecture_code,　prefecture_name = pref,
+    # 日本語の変数名は扱いにくいので英語名に変更する
+    pref = `都道府県`, region = `八地方区分`, pops = `推計人口`
+  ) %>% 
+  dplyr::mutate(
+    # 水準ごとに表示させるために因子化する（あらかじめデータをコード順に並べて
+    # おくことが因子化の際のポイントのひとつ）
+    japan_prefecture_code = forcats::fct_inorder(japan_prefecture_code),
+    pref = forcats::fct_inorder(pref),
+    region = forcats::fct_inorder(region),
+    pops = as.integer(pops)
+  )
 
 prefs
 ```
@@ -83,29 +151,34 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
   jsonlite::fromJSON() %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
                 pref = detectedPrefecture, patientStatus, knownCluster,
-                confirmedPatient,
-                ageBracket,
+                confirmedPatient, ageBracket,
                 deceasedDate, deceasedReportedDate) %>% 
   dplyr::filter(confirmedPatient == TRUE) %>% 
-  dplyr::mutate(date = lubridate::as_date(date),
-                gender = forcats::as_factor(gender),
-                pref = stringr::str_to_lower(pref),
-                patientStatus = forcats::as_factor(patientStatus),
-                cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
-                ageBracket = forcats::as_factor(ageBracket),
-                deceasedDate = lubridate::as_date(deceasedDate),
-                deceasedReportedDate = lubridate::as_date(deceasedReportedDate)) %>% 
+  dplyr::mutate(
+    date = lubridate::as_date(date),
+    gender = forcats::as_factor(gender),
+    pref = stringr::str_to_lower(pref),
+    patientStatus = forcats::as_factor(patientStatus),
+    cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+    ageBracket = forcats::as_factor(ageBracket),
+    deceasedDate = lubridate::as_date(deceasedDate),
+    deceasedReportedDate = lubridate::as_date(deceasedReportedDate)
+  ) %>% 
+  # 都道府県データと結合
   dplyr::left_join(prefs, by = c("pref" = "prefecture_name")) %>% 
   dplyr::select(-pref) %>% 
   dplyr::rename(pref = pref.y) %>% 
-  dplyr::mutate(japan_prefecture_code = forcats::fct_explicit_na(japan_prefecture_code,
-                                                                 na_level = "JP-99"),
-                pref = forcats::fct_explicit_na(pref, na_level = "空港検疫"),
-                region = forcats::fct_explicit_na(region, na_level = "空港検疫"),
-                gender = forcats::fct_explicit_na(gender, na_level = "非公表"),
-                ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
-                patientStatus = forcats::fct_explicit_na(patientStatus,
-                                                         na_level = "Unknown")) %>% 
+  # 因子型の欠損値を水準化する
+  dplyr::mutate(
+    japan_prefecture_code = forcats::fct_explicit_na(japan_prefecture_code,
+                                                     na_level = "JP-99"),
+    pref = forcats::fct_explicit_na(pref, na_level = "空港検疫"),
+    region = forcats::fct_explicit_na(region, na_level = "空港検疫"),
+    gender = forcats::fct_explicit_na(gender, na_level = "非公表"),
+    ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
+    patientStatus = forcats::fct_explicit_na(patientStatus,
+                                             na_level = "Unknown")
+  ) %>% 
   dplyr::filter(date < lubridate::today())
 
 df
@@ -129,13 +202,17 @@ df %>%
 japan_daily <- df %>% 
   dplyr::group_by(date) %>% 
   dplyr::summarise(n = dplyr::n()) %>% 
-  tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                  fill = list(n = 0L)) %>% 
-  dplyr::mutate(diff = lagdiff(n),   # 前日差
-                cum = cumsum(n),     # 累計
-                ma7 = ma7(n),        # 移動平均（7日）
-                ma28 = ma28(n)       # 移動平均（28日）
-                )
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    fill = list(n = 0L)
+  ) %>% 
+  dplyr::mutate(
+    diff = lagdiff(n),   # 前日差
+    cum = cumsum(n),     # 累計
+    ma7 = ma7(n),        # 移動平均（7日）
+    ma28 = ma28(n)       # 移動平均（28日）
+  )
 
 japan_daily
 ```
@@ -143,24 +220,35 @@ japan_daily
 　  
 
 ### 地方区分別集計
-```{r}
-region_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                region)
 
+```{r, eval=FALSE}
 region_daily <- df %>% 
   dplyr::group_by(date, region) %>% 
   dplyr::summarise(n = dplyr::n()) %>% 
-  dplyr::left_join(region_base, ., by = c("date", "region")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::ungroup() %>%                         # この処理がポイント
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    region, fill = list(n = 0L)
+  ) %>% 
+  print() %>%                                  # 途中結果の表示
   dplyr::group_by(region) %>% 
-  tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
-  tidyr::unnest()
+  tidyr::nest() %>%
+  print() %>%                                  # 途中結果の表示
+  # 組み合わせグルーピングの場合は purrr パッケージで処理するのが速い
+  dplyr::mutate(
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
+  tidyr::unnest(cols = c(data, diff, cum, ma7, ma28))
+
+region_daily
+```
+
+```{r}
+region_daily <- df %>% 
+  daily_aggregate(date, region)   # 上記の集計処理を関数化したもの
 
 region_daily
 ```
@@ -168,24 +256,30 @@ region_daily
 　  
 
 ### 都道府県別集計
-```{r}
-pref_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                pref)
-
+```{r, include=FALSE, eval=FALSE}
 pref_daily <- df %>% 
   dplyr::group_by(date, pref) %>% 
   dplyr::summarise(n = n()) %>% 
-  dplyr::left_join(pref_base, ., by = c("date", "pref")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    pref, fill = list(n = 0L)
+  ) %>% 
   dplyr::group_by(pref) %>% 
   tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
+  dplyr::mutate(
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
   tidyr::unnest()
+
+pref_daily
+```
+```{r}
+pref_daily <- df %>% 
+  daily_aggregate(date, pref)
 
 pref_daily
 ```
@@ -197,106 +291,117 @@ pref_daily
 　  
 
 ### 全国集計
-```{r}
-age_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                ageBracket)
-
+```{r, include=FALSE, eval=FALSE}
 ageBracket_daily <- df %>% 
   dplyr::group_by(date, ageBracket) %>% 
   dplyr::summarise(n = dplyr::n()) %>% 
-  dplyr::left_join(age_base, ., by = c("date", "ageBracket")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    ageBracket, fill = list(n = 0L)
+  ) %>% 
   dplyr::group_by(ageBracket) %>% 
   tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
-  tidyr::unnest()
+  dplyr::mutate(
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
+  tidyr::unnest(cols = c(data, diff, cum, ma7, ma28))
+
+ageBracket_daily
+```
+
+```{r}
+ageBracket_daily <- df %>% 
+  daily_aggregate(date, ageBracket)
 
 ageBracket_daily
 ```
 
 　  
 
-### 地方区分別集計
-```{r}
-age_region_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                ageBracket, region)
+<!-- ### 地方区分別集計 -->
+<!-- ```{r} -->
+<!-- ageBracket_region_daily <- df %>%  -->
+<!--   dplyr::group_by(date, ageBracket, region) %>%  -->
+<!--   dplyr::summarise(n = dplyr::n()) %>%  -->
+<!--   dplyr::ungroup() %>%  -->
+<!--   tidyr::complete( -->
+<!--     date = seq.Date(from = min(date), to = max(date), by = "day"), -->
+<!--     ageBracket, region, fill = list(n = 0L) -->
+<!--   ) %>%  -->
+<!--   dplyr::group_by(ageBracket, region) %>%  -->
+<!--   tidyr::nest() %>%  -->
+<!--   dplyr::mutate( -->
+<!--     diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差 -->
+<!--     cum = purrr::map(data, ~ cumsum(.$n)),     # 累計 -->
+<!--     ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日） -->
+<!--     ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日） -->
+<!--   ) %>%  -->
+<!--   tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) -->
 
-ageBracket_region_daily <- df %>% 
-  dplyr::group_by(date, ageBracket, region) %>% 
-  dplyr::summarise(n = dplyr::n()) %>% 
-  dplyr::left_join(age_region_base, .,
-                   by = c("date", "ageBracket", "region")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
-  dplyr::group_by(ageBracket, region) %>% 
-  tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
-  tidyr::unnest()
+<!-- ageBracket_region_daily -->
+<!-- ``` -->
 
-ageBracket_region_daily
-```
+<!-- 　   -->
 
-　  
+<!-- ### 都道府県年代別 -->
+<!-- ```{r} -->
+<!-- ageBracket_pref_daily <- df %>%  -->
+<!--   dplyr::group_by(date, ageBracket, pref) %>%  -->
+<!--   dplyr::summarise(n = dplyr::n()) %>%  -->
+<!--   dplyr::ungroup() %>%  -->
+<!--   tidyr::complete( -->
+<!--     date = seq.Date(from = min(date), to = max(date), by = "day"), -->
+<!--     ageBracket, pref, fill = list(n = 0L) -->
+<!--   ) %>%  -->
+<!--   dplyr::group_by(ageBracket, pref) %>%  -->
+<!--   tidyr::nest() %>%  -->
+<!--   dplyr::mutate( -->
+<!--     diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差 -->
+<!--     cum = purrr::map(data, ~ cumsum(.$n)),     # 累計 -->
+<!--     ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日） -->
+<!--     ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日） -->
+<!--   ) %>%  -->
+<!--   tidyr::unnest() -->
 
-### 都道府県年代別
-```{r}
-age_pref_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                ageBracket, pref)
+<!-- ageBracket_pref_daily -->
+<!-- ``` -->
 
-ageBracket_pref_daily <- df %>% 
-  dplyr::group_by(date, ageBracket, pref) %>% 
-  dplyr::summarise(n = dplyr::n()) %>% 
-  dplyr::left_join(age_pref_base, .,
-                   by = c("date", "ageBracket", "pref")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
-  dplyr::group_by(ageBracket, pref) %>% 
-  tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
-  tidyr::unnest()
-
-ageBracket_pref_daily
-```
-
-
-　  
+<!-- 　   -->
 
 ## クラスター別集計
 
 　  
 
 ### 全国集計
-```{r}
-cluster_base <- df %>% 
-  tidyr::expand(date = seq.Date(from = min(date), to = max(date), by = "day"),
-                cluster)
-
+```{r, include=FALSE, eval=FALSE}
 cluster_daily <- df %>% 
   dplyr::group_by(date, cluster) %>% 
   dplyr::summarise(n = dplyr::n()) %>% 
-  dplyr::left_join(cluster_base, ., by = c("date", "cluster")) %>% 
-  tidyr::replace_na(replace = list(n = 0L)) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    cluster, fill = list(n = 0L)
+  ) %>% 
   dplyr::group_by(cluster) %>% 
   tidyr::nest() %>% 
-  dplyr::mutate(diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-                cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-                ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-                ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-                ) %>% 
+  dplyr::mutate(
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
   tidyr::unnest()
+
+cluster_daily
+```
+
+```{r}
+cluster_daily <- df %>% 
+  daily_aggregate(date, cluster)
 
 cluster_daily
 ```
@@ -439,7 +544,7 @@ subset %>%
 #### 同移動平均（28日）
 ```{r}
 subset <- region_daily %>% dplyr::mutate(key = region, y = ma28)
-title <- "【地方別】移動平均(7日)"
+title <- "【地方別】移動平均(28日)"
 xlab <- ""
 ylab <- "陽性者数"
 
