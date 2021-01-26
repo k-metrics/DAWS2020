@@ -302,6 +302,12 @@ library(jsonlite)
 * [新型コロナウイルス対策ダッシュボード](https://www.stopcovid19.jp/)
     * [新型コロナウイルス対策病床オープンデータ](https://docs.google.com/spreadsheets/d/1u0Ul8TgJDqoZMnqFrILyXzTHvuHMht1El7wDZeVrpp8/edit#gid=0)
 * [新型コロナウィルス感染速報](https://covid-2019.live/)
+* [NHK集計データ](https://www3.nhk.or.jp/n-data/opendata/coronavirus/nhk_news_covid19_prefectures_daily_data.csv)
+* [埼玉県オープンデータ（個票）](https://opendata.pref.saitama.lg.jp/data/dataset/covid19-jokyo)
+* [東京都オープンデータ（個票）](https://stopcovid19.metro.tokyo.lg.jp/data/130001_tokyo_covid19_patients.csv)
+* [神奈川県オープンデータ（個票）](https://www.pref.kanagawa.jp/osirase/1369/data/csv/patient.csv)
+* [大阪府オープンデータ（集計）](https://covid19-osaka.info/data/summary.csv)
+* [兵庫県オープンデータ（集計）](https://web.pref.hyogo.lg.jp/kk03/documents/yousei.xlsx)
 
 　  
 
