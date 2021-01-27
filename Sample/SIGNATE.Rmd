@@ -45,10 +45,10 @@ caption <- "Data Source: covid19japan.com"
 
 ## 個票データ
 ```{r, include=FALSE, eval=FALSE}
-df <- "https://docs.google.com/spreadsheets/d/10MFfRQTblbOpuvOs_yjIYgntpMGBg592dL8veXoPpp4" %>% 
+sig_df <- "https://docs.google.com/spreadsheets/d/10MFfRQTblbOpuvOs_yjIYgntpMGBg592dL8veXoPpp4" %>% 
   googlesheets4::read_sheet(sheet = "罹患者", col_types = "c")
 
-df
+sig_df
 
 # df %>%
 #   readr::write_csv(paste0("./Covid19/SIGNATE_CaseData_", lubridate::today(), ".csv"),

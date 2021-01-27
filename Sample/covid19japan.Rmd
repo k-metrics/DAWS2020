@@ -798,6 +798,21 @@ nhk_daily <- "https://www3.nhk.or.jp/n-data/opendata/coronavirus/nhk_news_covid1
 nhk_daily
 ```
 
+## SIGNATE
+```{r}
+sig <- "https://docs.google.com/spreadsheets/d/10MFfRQTblbOpuvOs_yjIYgntpMGBg592dL8veXoPpp4" %>% 
+  googlesheets4::read_sheet(sheet = "統計全般", col_types = "c")
+
+sig
+
+sig_daily <- sig %>% 
+  dplyr::select(date = `日付`, n = `日本国内\n新規罹患者数`) %>% 
+  dplyr::mutate(date = lubridate::as_date(date),
+                n = stringr::str_remove(n, ",") %>% as.integer())
+
+sig_daily
+```
+
 
 ## 比較
 ```{r}
@@ -805,18 +820,50 @@ japan_daily %>%
   dplyr::select(date, n) %>% 
   dplyr::left_join(mhlw_daily, by = "date") %>% 
   dplyr::left_join(nhk_daily, by = "date") %>% 
-  dplyr::rename(c19j = n.x, mhlw = n.y, nhk = n) %>%
-  # print() %>% 
-  dplyr::mutate(c19j_mhlw = c19j - mhlw,
-                c19j_nhk = c19j - nhk,
-                mhlw_nhl = mhlw - nhk) %>% 
-  dplyr::select(-c19j, -mhlw, -nhk) %>% 
+  dplyr::left_join(sig_daily, by = "date") %>% 
+  dplyr::rename(c19j = n.x, mhlw = n.y, nhk = n.x.x, sig = n.y.y) %>%
+  # print()
+  dplyr::mutate(`C19J - MHLW` = abs(c19j - mhlw),
+                `C19J - NHK` = abs(c19j - nhk),
+                `C19J - SIGNATE` = abs(c19j - sig),
+                `MHLW - NHK` = abs(mhlw - nhk),
+                `MHLW - SIGNATE` = abs(mhlw - sig),
+                `NHK  - SIGNATE` = abs(nhk - sig)) %>% 
+  dplyr::select(-c19j, -mhlw, -nhk, -sig) %>% 
   # print() %>% 
   tidyr::pivot_longer(cols = -date, names_to = "name", values_to = "diff") %>% 
   ggplot2::ggplot(ggplot2::aes(x = date, y = diff, colour = name)) + 
-    ggplot2::geom_line() 
+    ggplot2::geom_line() + 
+    ggplot2::facet_wrap(~ name) + 
+    ggplot2::theme(legend.position = 'none') +
+    ggplot2::labs(title = "陽性者数の集計主体間の差異（単日）",
+                  subtitle = lubridate::now(),
+                  y = "人数差")
 ```
 
+```{r}
+japan_daily %>% 
+  dplyr::select(date, n) %>% 
+  dplyr::left_join(mhlw_daily, by = "date") %>% 
+  dplyr::left_join(nhk_daily, by = "date") %>% 
+  dplyr::left_join(sig_daily, by = "date") %>% 
+  dplyr::rename(c19j = n.x, mhlw = n.y, nhk = n.x.x, sig = n.y.y) %>%
+  # print()
+  dplyr::mutate(`C19J - MHLW` = abs(c19j - mhlw),
+                `C19J - NHK` = abs(c19j - nhk),
+                `C19J - SIGNATE` = abs(c19j - sig),
+                `MHLW - NHK` = abs(mhlw - nhk),
+                `MHLW - SIGNATE` = abs(mhlw - sig),
+                `NHK  - SIGNATE` = abs(nhk - sig)) %>% 
+  dplyr::select(-c19j, -mhlw, -nhk, -sig, -`C19J - MHLW`, -`MHLW - NHK`, -`MHLW - SIGNATE`) %>% 
+  # print() %>% 
+  tidyr::pivot_longer(cols = -date, names_to = "name", values_to = "diff") %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = diff, colour = name)) + 
+    ggplot2::geom_line() + 
+    ggplot2::labs(title = "陽性者数の集計主体間の差異（単日）",
+                  subtitle = lubridate::now(),
+                  y = "人数差")
+```
 
 
 <!-- ## Google予測データ -->
