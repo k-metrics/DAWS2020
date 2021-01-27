@@ -49,6 +49,9 @@ x %>%
 
 "https://storage.googleapis.com/covid-external/forecast_JAPAN_PREFECTURE_28.csv" %>% 
   download.file(paste0("./Google_Forecast_", lubridate::today(), ".csv"))
+
+"https://www3.nhk.or.jp/n-data/opendata/coronavirus/nhk_news_covid19_prefectures_daily_data.csv" %>% 
+  download.file(paste0("./NHK_", lubridate::today(), ".csv"))
 ```
 
 Data File Created: `r lubridate::now()`　  
