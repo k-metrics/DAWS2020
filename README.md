@@ -18,7 +18,7 @@
 | 実施月 | テーマ      | 実施内容         | 備考                |
 | --- | -------- | ------------ | ----------------- |
 | 1月  | 集計データを扱う | 概要説明、実習、成果発表 | ニュースで見るようなグラフを描こう |
-| 2月  | 個票データを扱う | 概要説明、実習、成果発表 | さらに一歩進んだグラフを描こう   |
+| 2月  | 個票データを扱う | 概要説明、実習、成果発表 | 属性を用いて様々な集計をしてみよう |
 
 　
 
@@ -86,16 +86,18 @@ Zoomのブレイクアウトセッション機能を利用しブレイクアウ�
 [JSON形式の個票データ（CC
 BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/patient_data)
 を使います。ファイルとして本リポジトリの `Data` フォルダ内に格納してあります。  
-`Data`フォルダ内のファイルは以下の四種類です。目的に応じて選択してください、なお、各ファイルの著作権は原著作者にあります。  
+`Data`フォルダ内には Covid19Japan
+の個票データと共に下表のファイルが格納されています。目的に応じて利用してください。なお、各ファイルの著作権は原著作者にあります。  
 　  
 現状では手動トリガーにて取得しているために取得時間はバラバラです（取得後に更新されている可能性があります）。
 
-| ファイル名                              | 内容                    | Encode |
-| ---------------------------------- | --------------------- | ------ |
-| covid19japan\_YYYY-MM-DD.csv       | 加工済個票データ              | UTF-8  |
-| covid19japan\_YYYY-MM-DD.json      | Covid19Japanのオリジナルデータ | UTF-8  |
-| covid19japan\_YYYY-MM-DD\_json.csv | 上記をCSV形式に変換したもの       | UTF-8  |
-| Google\_Forecast\_YYYY-MM-DD.csv   | Googleの予測データ          | UTF-8  |
+| ファイル名                              | 内容                      | Encode |
+| ---------------------------------- | ----------------------- | ------ |
+| covid19japan\_YYYY-MM-DD.csv       | 加工済個票データ                | UTF-8  |
+| covid19japan\_YYYY-MM-DD.json      | Covid19Japanのオリジナルデータ   | UTF-8  |
+| covid19japan\_YYYY-MM-DD\_json.csv | 上記をCSV形式に変換したもの         | UTF-8  |
+| Google\_Forecast\_YYYY-MM-DD.csv   | Googleの予測データ            | UTF-8  |
+| NHK\_YYYY-MM-DD.csv                | NHKの都道府県別日時集計（単日・累計）データ | UTF-8  |
 
 `YYYY-MM-DD`は取得日
 
@@ -266,4 +268,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki (Update: 2021-01-26 23:09:46)
+Sampo Suzuki (Update: 2021-02-01 15:43:11)
