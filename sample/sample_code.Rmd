@@ -104,7 +104,7 @@ ma <- function(n, k = 7L) {     # 移動平均(k日)を求める関数
 
 　  
 
-日次集計のための関数を定義しておきます。この関数は第一引数にデータフレームを取り、データフレームが以下の構造であることを前提としています。
+日次集計のための関数を定義しておきます。この関数は第一引数にデータフレームを取り、データフレームが以下のような構成を取る個票データであることを前提としています。
 ```{r, eval=FALSE}
 df <- data.frame(
   date,   # Date型の日付データ
@@ -113,23 +113,23 @@ df <- data.frame(
 )
 ```
 
-ここで定義してる集計関数は任意の変数の水準ごとに日次集計を行います。エラー処理については省略しています。
+ここで定義してる集計関数は任意の変数の水準ごとに日次集計を行います。なお、エラー処理の記述については省略しています。
 ```{r, eval=FALSE}
 daily_aggregate <- function(df, date, key) {
   date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
   key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
-  
+
   df %>% 
-    dplyr::group_by(!!date, !!key) %>% 
-    dplyr::summarise(n = dplyr::n()) %>% 
-    dplyr::ungroup() %>% 
-    tidyr::complete(
+    dplyr::group_by(!!date, !!key) %>%    # 任意の水準ごとの日次集計を行う
+    dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+    dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+    tidyr::complete(                      # 暗黙の欠損を補完する
       date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
-      !!key, fill = list(n = 0L)
+      !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
     ) %>% 
-    dplyr::group_by(!!key) %>% 
-    tidyr::nest() %>%
-    dplyr::mutate(
+    dplyr::group_by(!!key) %>%            # 上記の日次集計を元に各種計算を
+    tidyr::nest() %>%                     # 行うには nest & unnest 処理を
+    dplyr::mutate(                        # 利用する
       diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
       cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
       ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
@@ -139,7 +139,8 @@ daily_aggregate <- function(df, date, key) {
     return()
 }
 ```
-この関数は `purrr` パッケージを用いて前日差などを計算している点がポイントです。なぜ、`dplyr::group_by` と `dplyr::summarize` の組み合わせで前日差などを計算しないのかは実際にコード実行してみて確認してください。  
+この関数は `tidyr::nest`, `tidyr::unnest` を用いてグループごとにまとめた日次集計データを
+`purrr` パッケージを用いて処理してる点がポイントです。後述の全国集計と何が異なるのかは実際にコードを動かして確認してください。  
 
 その他、グラフで繰り返し使う文字列を変数として定義しておきます。
 ```{r, eval=FALSE}
@@ -220,7 +221,8 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
 df
 ```
 
-作成したデータフレームを確認します。
+　  
+作成したデータフレームを確認します。意外と欠損値（`n_missing`項参照）が多いデータであることが分かります。
 ```{r}
 df %>% 
   skimr::skim()
@@ -258,10 +260,19 @@ japan_daily <- df %>%
 japan_daily
 ```
 
+変数 | 変数の意味           | 変数型  | 備考
+-----|----------------------|---------|-----------------
+date | 陽性判定者の報告日   | Date    | 陽性判定日とは異なる
+n    | 陽性判定者数         | Integer | 
+diff | 同前日差             | Integer | 初日は陽性判定者数に同じ
+cum  | 同累計               | Integer | 
+ma7  | 同移動平均（7日）    | Double  | 
+ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月）
+
 　  
 
 ### 地方区分別集計
-ここでは定義した `daily_aggregate` 関数を用いて集計を行います。処理としては全国集計の場合と同じ考え方です。
+ここでは定義した `daily_aggregate` 関数を用いて集計を行っています。処理としては全国集計の場合と同じ考え方ですが、前述のように前日差や累計などを計算する際のデータの処理方法がことなっている点に注意してください。
 ```{r}
 region_daily <- df %>% 
   daily_aggregate(date, region)   # 上記の集計処理を関数化したもの
@@ -272,6 +283,7 @@ region_daily
 　  
 
 ### 都道府県別集計
+地方区分集計と同様に集計します。
 ```{r}
 pref_daily <- df %>% 
   daily_aggregate(date, pref)
@@ -294,6 +306,8 @@ ageBracket_daily
 ```
 
 　  
+年代別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
+　  
 
 ## クラスター別集計
 
@@ -308,8 +322,11 @@ cluster_daily
 ```
 
 　  
+クラスター別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
+　  
 
 # Visualize
+作成した集計データを可視化します。
 
 ## 陽性判定者数
 
@@ -324,7 +341,7 @@ subset <- japan_daily
 title <- "【全国】陽性者数(単日)"
 xlab <- ""
 ylab <- ""
-sec_scale <- 50
+sec_scale <- 50   # 縦二軸のスケーリング
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
@@ -332,16 +349,23 @@ subset %>%
                       fill = "dark gray", alpha = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "solid",
                        colour = "gray10", size = 0.5) + 
+    # 第二軸を利用するグラフを描画する際はスケーリング調整する必要あり
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
                        colour = "dark green", size = 1.0) +
+    # 二軸表示のための軸属性の指定
     ggplot2::scale_y_continuous(
+      # 第一軸のラベル（スケールは自動調整）
       name = "陽性者数（灰）・移動平均（黒）",
+      # 第二軸の指定（第一軸にあわせたスケーリング）
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
                                    name = "累積陽性者数（濃緑）")) + 
-    ggplot2::theme(axis.text.y.left = ggplot2::element_text(colour = "gray10"),
-                   axis.line.y.left = ggplot2::element_line(colour = "gray10"),
-                   axis.text.y.right = ggplot2::element_text(colour = "dark green"),
-                   axis.line.y.right = ggplot2::element_line(colour = "dark green")) +
+    ggplot2::theme(
+      axis.text.y.left = ggplot2::element_text(colour = "gray10"),
+      axis.line.y.left = ggplot2::element_line(colour = "gray10"),
+      axis.text.y.right = ggplot2::element_text(colour = "dark green"),
+      axis.line.y.right = ggplot2::element_line(colour = "dark green")
+    ) +
+    # グラフ全体のラベル指定
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
 ```
