@@ -42,7 +42,7 @@ ma <- function(n, k = 7L) {
 
 # Non-standard evaluation
 # https://www.marketechlabo.com/r-function-using-nse/
-daily_aggregate <- function(df = NULL, date = NULL, key = NULL) {
+daily_aggregate <- function (df = NULL, date = NULL, key = NULL) {
   if (missing(df) | missing(date) | missing(key)) {
     return(NULL)
   } else {
@@ -68,6 +68,34 @@ daily_aggregate <- function(df = NULL, date = NULL, key = NULL) {
       tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
       return()
   }
+}
+
+daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::group_by(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+      dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date)
+    }
 }
 
 subtitle <- paste0("Generated @", lubridate::now())
@@ -103,45 +131,6 @@ ma <- function(n, k = 7L) {     # 移動平均(k日)を求める関数
 ```
 
 　  
-
-日次集計のための関数を定義しておきます。この関数は第一引数にデータフレームを取り、データフレームが以下のような構成を取る個票データであることを前提としています。
-```{r, eval=FALSE}
-df <- data.frame(
-  date,   # Date型の日付データ
-  key,    # グルーピングのためのデータ（例：都道府県、地方区分など）
-  ...     # 順不同
-)
-```
-
-ここで定義してる集計関数は任意の変数の水準ごとに日次集計を行います。なお、エラー処理の記述については省略しています。
-```{r, eval=FALSE}
-daily_aggregate <- function(df, date, key) {
-  date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
-  key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
-
-  df %>% 
-    dplyr::group_by(!!date, !!key) %>%    # 任意の水準ごとの日次集計を行う
-    dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
-    dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
-    tidyr::complete(                      # 暗黙の欠損を補完する
-      date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
-      !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
-    ) %>% 
-    dplyr::group_by(!!key) %>%            # 上記の日次集計を元に各種計算を
-    tidyr::nest() %>%                     # 行うには nest & unnest 処理を
-    dplyr::mutate(                        # 利用する
-      diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
-      cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
-      ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
-      ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
-    ) %>% 
-    tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
-    return()
-}
-```
-この関数は `tidyr::nest`, `tidyr::unnest` を用いてグループごとにまとめた日次集計データを
-`purrr` パッケージを用いて処理してる点がポイントです。後述の全国集計と何が異なるのかは実際にコードを動かして確認してください。  
-
 その他、グラフで繰り返し使う文字列を変数として定義しておきます。
 ```{r, eval=FALSE}
 subtitle <- paste0("Generated @", lubridate::now())
@@ -234,12 +223,12 @@ df %>%
 
 　  
 
-## 陽性者判定者数
+## 単純集計
 
 　  
 
 ### 全国集計
-日次集計を行います。集計は `dplyr::group_by` と `dplyr::summrise` を用います。日付データがない日は集計として現れませんので、`tidyr::complete` でデータを補完しておきます。  
+全国集計は日付データ（`data`）に基づく日次の単純集計です。`dplyr::group_by` と `dplyr::summrise` を用いることで簡単に計数できます。ただし、日付データがない日は集計結果として現れませんので `tidyr::complete` でデータを補完しておく必要があります。  
 その後、集計結果を元に前日差、累計、移動平均を計算します。
 ```{r}
 japan_daily <- df %>% 
@@ -271,11 +260,80 @@ ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月）
 
 　  
 
+## クロス集計
+以降で計算するような、日次・地方区分別や日次・都道府県別などの複数の変数を用いた集計を一般的にクロス集計度呼びます。
+
+例えば以下のような構造を取る個票データをクロス集計するとします。
+```{r, eval=FALSE}
+df <- data.frame(
+  date,   # Date型の日付データ
+  key,    # グルーピングのためのデータ（例：都道府県、地方区分など）
+  ...     # 順不同
+)
+```
+
+基本的には単純集計と同じで `dplyr::group_by` と `dplyr::summarize` で集計します。補完も単純集計と同じく `tidyr::comple` で行うことができます。
+```{r, eval=FALSE}
+x <- df %>% 
+  dplyr::group_by(date, key) %>%      # クロス集計対象を指定するだけ
+  dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+  dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+  tidyr::complete(                      # 暗黙の欠損を補完する
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+  )
+```
+
+　  
+クロス集計後に前日差や累計などを算出するには `tidyr::nest`,`tidyr::unnest` と `purrr` パッケージを組み合わせた処理が確実かつ高速です。
+```{r, eval=FALSE}
+x %>% 
+  dplyr::group_by(key) %>%            # 上記の日次集計を元に各種計算を行う場合
+  tidyr::nest() %>%                   # nest & unnest 処理を利用すると確実
+  dplyr::mutate(                      # ネストしたデータはpurrrで処理する
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
+  tidyr::unnest(cols = c(data, diff, cum, ma7, ma28))
+```
+
+`purrr` パッケージの使い方がよく分からない場合は以下でも可。
+```{r, eval=FALSE}
+x %>% 
+  dplyr::group_by(key) %>%            # ここがポイント
+  dplyr::mutate(
+    diff = lagdiff(n),
+    cum = cumsum(n),
+    ma7 = ma7(n),
+    ma28 = ma28(n)
+  ) %>% 
+  dplyr::ungroup()
+```
+
+```{r, include=FALSE, eval=FALSE}
+system.time(
+  df_nest <- df %>%  daily_aggregate(date, region)
+)
+
+system.time(
+  df_mutate <- df %>% daily_aggregate2(date, region)
+)
+
+df_nest
+df_mutate
+
+df_nest - df_mutate
+```
+
+　  
+
 ### 地方区分別集計
-ここでは定義した `daily_aggregate` 関数を用いて集計を行っています。処理としては全国集計の場合と同じ考え方ですが、前述のように前日差や累計などを計算する際のデータの処理方法がことなっている点に注意してください。
+前述のクロス集計処理を `daily_aggregate` 関数として定義しているので、これを用いて集計を行っています。
 ```{r}
 region_daily <- df %>% 
-  daily_aggregate(date, region)   # 上記の集計処理を関数化したもの
+  daily_aggregate(date, region)   # 前述の集計処理を関数化したもの
 
 region_daily
 ```
@@ -293,11 +351,7 @@ pref_daily
 
 　  
 
-## 年代別集計
-
-　  
-
-### 全国集計
+### 年代別集計
 ```{r}
 ageBracket_daily <- df %>% 
   daily_aggregate(date, ageBracket)
@@ -307,13 +361,10 @@ ageBracket_daily
 
 　  
 年代別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
-　  
-
-## クラスター別集計
 
 　  
 
-### 全国集計
+### クラスター別集計
 ```{r}
 cluster_daily <- df %>% 
   daily_aggregate(date, cluster)
@@ -323,12 +374,16 @@ cluster_daily
 
 　  
 クラスター別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
+
 　  
 
 # Visualize
 作成した集計データを可視化します。
+　  
 
 ## 陽性判定者数
+
+　  
 
 ### 全国集計
 ```{r}
@@ -336,14 +391,14 @@ japan_daily %>%
   dplyr::filter(date == max(date))
 ```
 
+単日と累計が二桁違うので、縦二軸のグラフを描きます。
 ```{r}
-subset <- japan_daily
 title <- "【全国】陽性者数(単日)"
 xlab <- ""
 ylab <- ""
 sec_scale <- 50   # 縦二軸のスケーリング
 
-subset %>% 
+japan_daily %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
                       fill = "dark gray", alpha = 1.0) + 
@@ -359,6 +414,7 @@ subset %>%
       # 第二軸の指定（第一軸にあわせたスケーリング）
       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
                                    name = "累積陽性者数（濃緑）")) + 
+    # 縦軸の装飾
     ggplot2::theme(
       axis.text.y.left = ggplot2::element_text(colour = "gray10"),
       axis.line.y.left = ggplot2::element_line(colour = "gray10"),
@@ -371,9 +427,12 @@ subset %>%
 ```
 
 　  
+以降、描画コードは割愛しますが、このように個票を任意の変数の水準ごとに集計すると様々なデータの見かたができるようになります。
+
+　  
 
 #### 同前日差
-```{r}
+```{r, echo=FALSE}
 subset <- japan_daily %>% dplyr::mutate(y = diff)
 title <- "【全国】前日差(単日)"
 xlab <- ""
@@ -389,12 +448,12 @@ subset %>%
 　  
 
 ### 地方区分別集計
-```{r}
+```{r, echo=FALSE}
 region_daily %>% 
   dplyr::filter(date == max(date))
 ```
 
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = n)
 title <- "【地方別】陽性者数(単日)"
 xlab <- ""
@@ -411,7 +470,7 @@ subset %>%
 
 　  
 
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = n)
 title <- "【地方別】単日"
 xlab <- ""
@@ -433,7 +492,7 @@ subset %>%
 　  
 
 #### 同累計
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = cum)
 title <- "【地方別】累計"
 xlab <- ""
@@ -455,7 +514,7 @@ subset %>%
 　  
 
 #### 同移動平均（7日）
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = ma7)
 title <- "【地方別】移動平均(7日)"
 xlab <- ""
@@ -477,7 +536,7 @@ subset %>%
 　  
 
 #### 同移動平均（28日）
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = ma28)
 title <- "【地方別】移動平均(28日)"
 xlab <- ""
@@ -499,7 +558,7 @@ subset %>%
 　  
 
 #### 同前日差
-```{r, fig.height=10, fig.width=10}
+```{r, fig.height=10, fig.width=10, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = diff)
 title <- "【地方別】前日差(単日)"
 xlab <- ""
@@ -518,12 +577,12 @@ subset %>%
 　  
 
 ### 都道府県別
-```{r}
+```{r, echo=FALSE}
 pref_daily %>% 
   dplyr::filter(date == max(date))
 ```
 
-```{r}
+```{r, echo=FALSE}
 subset <- pref_daily %>% dplyr::mutate(key = pref, y = n)
 title <- "【都道府県別】陽性者数(単日)"
 xlab <- ""
@@ -544,7 +603,7 @@ subset %>%
 
 　  
 
-```{r, fig.height=30, fig.width=10}
+```{r, fig.height=30, fig.width=10, echo=FALSE}
 subset <- pref_daily %>% dplyr::mutate(key = pref)
 title <- "【都道府県別】陽性者数(単日)"
 xlab <- ""
@@ -572,7 +631,7 @@ subset %>%
 　  
 
 #### 同前日差
-```{r, fig.height=30, fig.width=10}
+```{r, fig.height=30, fig.width=10, echo=FALSE}
 subset <- pref_daily %>% dplyr::mutate(key = pref, y = diff)
 title <- "【都道府県別】前日差(単日)"
 xlab <- ""
@@ -591,7 +650,7 @@ subset %>%
 　  
 
 ### 年代別
-```{r}
+```{r, echo=FALSE}
 subset <- ageBracket_daily %>% dplyr::mutate(key = ageBracket, y = n)
 title <- "【年代別】陽性者数(単日)"
 xlab <- ""
@@ -608,7 +667,7 @@ subset %>%
 　  
 
 ### クラスター別
-```{r}
+```{r, echo=FALSE}
 subset <- cluster_daily %>% dplyr::mutate(key = cluster, y = n)
 title <- "【クラスター別】陽性者数(単日)"
 xlab <- ""
@@ -628,7 +687,7 @@ subset %>%
 ### 対数化
 
 #### 地方区分（累計）
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = cum)
 title <- "【地方別】累計"
 xlab <- ""
@@ -651,7 +710,7 @@ subset %>%
 　  
 
 #### 同移動平均（7日）
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = ma7)
 title <- "【地方別】移動平均（7日）"
 xlab <- ""
@@ -674,7 +733,7 @@ subset %>%
 　  
 
 #### 同移動平均（28日）
-```{r}
+```{r, echo=FALSE}
 subset <- region_daily %>% dplyr::mutate(key = region, y = ma28)
 title <- "【地方別】移動平均（28日）"
 xlab <- ""
