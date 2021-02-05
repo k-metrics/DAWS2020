@@ -130,6 +130,9 @@ ma <- function(n, k = 7L) {     # 移動平均(k日)を求める関数
 }
 ```
 
+   
+累計は Base R の `cumsum` 関数を利用します。  
+
 　  
 その他、グラフで繰り返し使う文字列を変数として定義しておきます。
 ```{r, eval=FALSE}
@@ -145,6 +148,8 @@ caption <- "Data Source: covid19japan.com"
 　  
 
 ## 都道府県データ
+都道府県に関するデータは Gist で公開しているデータを用います。データ都道府県コード順に並んでいますので、この並びを利用して `forcats` パッケージを用いて因子化します。Base R
+の `as.factor` 関数を用いると水準がアルファニューメリック順に並べ変えられてしまう点に注意してください。
 ```{r}
 prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/f4ea87f429e1ca28627feff94b67c8b2432aee59/pref_utf8.csv" %>% 
   readr::read_csv() %>% 
@@ -173,8 +178,11 @@ prefs
 　  
 
 ## Covid19Japan個票データ
+個票データは [Covid19Japan.com のデータリポジトリ](https://github.com/reustle/covid19japan-data/) で公開されているデータを用います。データは参照しているソースが更新されると自動的に更新されますので、取得タイミングによっては全てのデータが揃っていない可能性があります。  
+JSON形式データの各項目については [データフォーマット](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参照してください。
 ```{r}
 df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  # JSON形式をデータフレームとして読み込む
   jsonlite::fromJSON() %>% 
   dplyr::select(patientId, date = dateAnnounced, gender,
                 pref = detectedPrefecture, patientStatus, knownCluster,
@@ -224,11 +232,12 @@ df %>%
 　  
 
 ## 単純集計
+最初に単純集計を行ってみます。  
 
 　  
 
 ### 全国集計
-全国集計は日付データ（`data`）に基づく日次の単純集計です。`dplyr::group_by` と `dplyr::summrise` を用いることで簡単に計数できます。ただし、日付データがない日は集計結果として現れませんので `tidyr::complete` でデータを補完しておく必要があります。  
+全国集計は日付データ（`data`）に基づく日次の単純集計です。厚生労働省のオープンデータにおける陽性者数データに相当します。単純集計は `dplyr::group_by` と `dplyr::summrise` を用いることで簡単に計数できます。ただし、データがない日は集計結果として現れませんので `tidyr::complete` で補完しておく必要があります。  
 その後、集計結果を元に前日差、累計、移動平均を計算します。
 ```{r}
 japan_daily <- df %>% 
@@ -249,6 +258,8 @@ japan_daily <- df %>%
 japan_daily
 ```
 
+　  
+
 変数 | 変数の意味           | 変数型  | 備考
 -----|----------------------|---------|-----------------
 date | 陽性判定者の報告日   | Date    | 陽性判定日とは異なる
@@ -256,14 +267,25 @@ n    | 陽性判定者数         | Integer |
 diff | 同前日差             | Integer | 初日は陽性判定者数に同じ
 cum  | 同累計               | Integer | 
 ma7  | 同移動平均（7日）    | Double  | 
-ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月）
+ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月相当）
+
+　  
+
+### 各変数別集計
+`dplyr::group_by` で指定する変数を変えることで各変数の水準ごとの集計ができます。これは、前述の `skimr::skim` によるサマリーと同値になりますので下記以外の集計は省略します。
+```{r}
+df %>% 
+  dplyr::group_by(gender) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup()
+```
 
 　  
 
 ## クロス集計
-以降で計算するような、日次・地方区分別や日次・都道府県別などの複数の変数を用いた集計を一般的にクロス集計度呼びます。
-
-例えば以下のような構造を取る個票データをクロス集計するとします。
+クロス集計は日付と地方区分、日付と都道府県などのように複数の変数における水準ごとの集計です。`table`などを利用しても集計可能ですが、`ggplot2` パッケージによる可視化を考慮し、ここではデータフレームを用いた集計を行います。  
+　  
+以下のような構造を取る個票データをクロス集計するとします。
 ```{r, eval=FALSE}
 df <- data.frame(
   date,   # Date型の日付データ
@@ -299,7 +321,8 @@ x %>%
   tidyr::unnest(cols = c(data, diff, cum, ma7, ma28))
 ```
 
-`purrr` パッケージの使い方がよく分からない場合は以下でも可。
+　  
+`purrr` パッケージの使い方がよく分からない場合は以下の方法でも可能です。
 ```{r, eval=FALSE}
 x %>% 
   dplyr::group_by(key) %>%            # ここがポイント
@@ -447,6 +470,54 @@ subset %>%
 
 　  
 
+#### 同ヒートマップ
+```{r}
+japan_daily %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    ggplot2::coord_equal() + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(title = "陽性者数ヒートマップ", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r}
+japan_daily %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() + 
+    ggplot2::labs(title = "曜日別陽性者数分布", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+参考までに箱ひげ図で示されている各分位数は以下の通りです。
+```{r, echo=FALSE}
+japan_daily %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  dplyr::group_by(weekday) %>% 
+  dplyr::summarise(fn = fivenum(n)) %>% 
+  tidyr::pivot_wider(names_from = weekday, values_from = fn) %>% 
+  tidyr::unnest() %>% 
+  dplyr::arrange(dplyr::desc(.)) %>% 
+  dplyr::bind_cols(data.frame(`分位数` = c("最大値", "第3四分位数",
+                                           "中央値（第2四分位数）",
+                                           "第1四分位数", "最小値")),
+                   .)
+```
+
+　  
+
 ### 地方区分別集計
 ```{r, echo=FALSE}
 region_daily %>% 
@@ -576,6 +647,53 @@ subset %>%
 
 　  
 
+#### 同ヒートマップ
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region)
+title <- "【地方別】陽性者数ヒートマップ"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    # ggplot2::coord_equal() + 
+    # ggplot2::coord_flip() + 
+    # ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region)
+title <- "【地方別】曜日別陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
 ### 都道府県別
 ```{r, echo=FALSE}
 pref_daily %>% 
@@ -645,6 +763,54 @@ subset %>%
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
+```
+
+　  
+
+#### 同ヒートマップ
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】陽性者数ヒートマップ"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    # ggplot2::coord_equal() + 
+    # ggplot2::coord_flip() + 
+    # ggplot2::theme(legend.position = 'none') +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】曜日別陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::theme(legend.position = 'none') +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
 ```
 
 　  
