@@ -186,3 +186,35 @@ subset %>%
                   x = xlab, y = ylab)
 ```
 
+　  
+
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- tokyo_ageBracket_daily %>% dplyr::mutate(key = ageBracket)
+title <- "【年代別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(date >= lubridate::as_date("2020-12-01")) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
