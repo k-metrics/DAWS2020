@@ -156,6 +156,13 @@ tokyo_ageBracket_daily
 　  
 
 # Visualize
+```{r}
+tokyo_ageBracket_daily %>% 
+  dplyr::filter(date == lubridate::today())
+```
+
+　  
+
 ```{r, fig.height=20, fig.width=10, echo=FALSE}
 subset <- tokyo_ageBracket_daily %>% dplyr::mutate(key = ageBracket)
 title <- "【年代別】陽性者数(単日)"
