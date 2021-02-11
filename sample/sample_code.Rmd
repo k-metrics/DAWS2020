@@ -94,7 +94,8 @@ daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
       ) %>% 
       dplyr::ungroup() %>% 
       dplyr::select(!!key, !!date, dplyr::everything()) %>% 
-      dplyr::arrange(!!key, !!date)
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
     }
 }
 
@@ -294,10 +295,10 @@ df <- data.frame(
 )
 ```
 
-基本的には単純集計と同じで `dplyr::group_by` と `dplyr::summarize` で集計します。補完も単純集計と同じく `tidyr::comple` で行うことができます。
+基本的には単純集計と同じで `dplyr::group_by` と `dplyr::summarize` で集計します。補完も単純集計と同じく `tidyr::complete` で行うことができます。
 ```{r, eval=FALSE}
 x <- df %>% 
-  dplyr::group_by(date, key) %>%      # クロス集計対象を指定するだけ
+  dplyr::group_by(date, key) %>%      # クロス集計対象を指定する
   dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
   dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
   tidyr::complete(                      # 暗黙の欠損を補完する
@@ -495,21 +496,27 @@ japan_daily %>%
 #### 同箱ひげ図
 ```{r}
 japan_daily %>% 
+  dplyr::filter(n > 0) %>% 
   dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = n)) + 
-    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
-    ggplot2::geom_boxplot() + 
+    ggplot2::geom_violin(ggplot2::aes(fill = weekday), alpha = 0.25) +
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.1) + 
+    ggplot2::stat_summary(ggplot2::aes(group = 1, colour = weekday),
+                          fun.y = median, geom = "line") + 
+    ggplot2::geom_boxplot(width = 0.1) +
     ggplot2::labs(title = "曜日別陽性者数分布", x = "", y = "",
                   subtitle = subtitle, caption = caption)
 ```
 
 　  
-参考までに箱ひげ図で示されている各分位数は以下の通りです。
+　  
+参考までに箱ひげ図で示されている各分位数（陽性者ゼロの日を除き小数点以下は丸めてあります）は以下の通りです。
 ```{r, echo=FALSE}
 japan_daily %>% 
+  dplyr::filter(n > 0) %>% 
   dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
   dplyr::group_by(weekday) %>% 
-  dplyr::summarise(fn = fivenum(n)) %>% 
+  dplyr::summarise(fn = fivenum(n) %>% round(., digits = 0)) %>% 
   tidyr::pivot_wider(names_from = weekday, values_from = fn) %>% 
   tidyr::unnest() %>% 
   dplyr::arrange(dplyr::desc(.)) %>% 
@@ -517,6 +524,25 @@ japan_daily %>%
                                            "中央値（第2四分位数）",
                                            "第1四分位数", "最小値")),
                    .)
+```
+
+　  
+
+```{r, fig.height=20}
+japan_daily %>% 
+  dplyr::mutate(month = dplyr::if_else(lubridate::year(date) > 2020,
+                                       lubridate::month(date) + 12,
+                                       lubridate::month(date))) %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n)) + 
+    ggplot2::geom_violin(ggplot2::aes(fill = weekday), alpha = 0.25) +
+    ggplot2::stat_summary(ggplot2::aes(group = 1, colour = weekday),
+                          fun.y = median, geom = "line") + 
+    ggplot2::geom_boxplot(width = 0.1) +
+    ggplot2::facet_wrap(~ month, nrow = 12, scales = "fixed", dir = "v") + 
+    ggplot2::labs(title = "曜日別・月別陽性者数分布", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
 ```
 
 　  
@@ -703,6 +729,7 @@ ylab <- ""
 ncol <- 3
 
 subset %>% 
+  dplyr::filter(n > 0) %>% 
   dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
@@ -723,6 +750,7 @@ ylab <- ""
 ncol <- 3
 
 subset %>% 
+  dplyr::filter(n > 0) %>% 
   ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
                                y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
@@ -756,7 +784,7 @@ subset %>%
     ggplot2::theme(legend.position = 'none') +
     ggrepel::geom_text_repel(ggplot2::aes(label = key),
                              data = subset(subset, date == max(date)),
-                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+                             nudge_x = 35, segment.alpha = 0.5, size = 3.5) + 
     ggplot2::lims(x = c(min(subset$date),
                         max(subset$date) + 45)) +
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
@@ -830,14 +858,10 @@ subset %>%
                 weeks = lubridate::epiweek(date)) %>% 
   dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
                                        weeks + max(weeks), weeks)) %>% 
-  # print() %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
     ggplot2::geom_tile() + 
     ggplot2::scale_fill_gradient(low = "white", high = "red") + 
-    # ggplot2::coord_equal() + 
-    # ggplot2::coord_flip() + 
-    # ggplot2::theme(legend.position = 'none') +
-    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
     ggplot2::labs(title = title, x = "", y = "",
                   subtitle = subtitle, caption = caption)
 ```
@@ -853,6 +877,7 @@ ylab <- ""
 ncol <- 3
 
 subset %>% 
+  dplyr::filter(n > 0) %>% 
   dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
@@ -874,6 +899,7 @@ ylab <- ""
 ncol <- 3
 
 subset %>% 
+  dplyr::filter(n > 0) %>% 
   ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
                                y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
@@ -897,6 +923,7 @@ ncol <- 3
 
 subset %>% 
   dplyr::filter(date > (lubridate::today() - 90)) %>% 
+  dplyr::filter(n > 0) %>% 
   ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
                                y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 

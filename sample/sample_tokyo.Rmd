@@ -158,7 +158,7 @@ tokyo_ageBracket_daily
 # Visualize
 ```{r}
 tokyo_ageBracket_daily %>% 
-  dplyr::filter(date == lubridate::today())
+  dplyr::filter(date == max(date))
 ```
 
 　  
