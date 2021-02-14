@@ -105,15 +105,17 @@ caption <- "Data Source: Tokyo Open Data"
 
 # Import
 ```{r}
-pattern <- paste0(lubridate::today() %>% stringr::str_remove_all(pattern = "-"),
-                  ".csv")
+# pattern <- paste0(lubridate::today() %>% stringr::str_remove_all(pattern = "-"),
+#                   ".csv")
 
 saitama_df <- "https://opendata.pref.saitama.lg.jp/data/dataset/covid19-jokyo" %>% 
   xml2::read_html() %>% 
   rvest::html_nodes(css = "a") %>%
   rvest::html_attr(name = "href") %>% 
-  stringr::str_subset(pattern = pattern) %>% 
-  readr::read_csv(locale = readr::locale(encoding = "CP932")) %>%
+  stringr::str_subset(pattern = ".csv") %>% 
+  tail(n = 1L) %>% 
+  # stringr::str_subset(pattern = pattern) %>% 
+  readr::read_csv(file = ., locale = readr::locale(encoding = "CP932")) %>%
   # readr::write_excel_csv("temp.csv")
   dplyr::mutate(date = lubridate::as_date(`判明日`),
                 ageBracket = as.factor(`年代`) %>% 
