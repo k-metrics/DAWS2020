@@ -250,6 +250,8 @@ library(jsonlite)
   - [神奈川県オープンデータ（個票）](https://www.pref.kanagawa.jp/osirase/1369/data/csv/patient.csv)
   - [大阪府オープンデータ（集計）](https://covid19-osaka.info/data/summary.csv)
   - [兵庫県オープンデータ（集計）](https://web.pref.hyogo.lg.jp/kk03/documents/yousei.xlsx)
+  - [COVID-19 Data Repository, CSSE Johns Hopkins
+    University](https://github.com/CSSEGISandData/COVID-19)
 
 　
 
@@ -268,4 +270,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki (Update: 2021-02-01 15:43:11)
+Sampo Suzuki (Update: 2021-02-18 10:10:59)

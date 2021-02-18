@@ -309,6 +309,7 @@ library(jsonlite)
 * [神奈川県オープンデータ（個票）](https://www.pref.kanagawa.jp/osirase/1369/data/csv/patient.csv)
 * [大阪府オープンデータ（集計）](https://covid19-osaka.info/data/summary.csv)
 * [兵庫県オープンデータ（集計）](https://web.pref.hyogo.lg.jp/kk03/documents/yousei.xlsx)
+* [COVID-19 Data Repository, CSSE Johns Hopkins University](https://github.com/CSSEGISandData/COVID-19)
 
 　  
 
