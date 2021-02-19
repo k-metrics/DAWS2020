@@ -157,7 +157,12 @@ df_csse_ts %>%
 
 ```{r}
 df_asia_daily <- df_csse_ts %>% 
-  dplyr::filter(Country_Region %in% c("Japan", "Korea, South", "Taiwan*", "Thailand")) %>% 
+  dplyr::filter(Country_Region %in% c("India", "Indonesia", "Japan",
+                                      "Korea, South", "Mongolia", "Philippines",
+                                      "Singapore", "Taiwan*", "Thailand",
+                                      "Vietnam")) %>% 
+  # dplyr::filter(is.na(Providence_State)) %>% 
+  dplyr::arrange(date) %>% 
   dplyr::group_by(Country_Region) %>% 
   dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
   dplyr::ungroup()
@@ -169,6 +174,8 @@ df_asia_daily
 　  
 
 # Visualize
+
+## 亜細亜
 ```{r, echo=FALSE}
 subset <- df_asia_daily %>% dplyr::mutate(key = Country_Region)
 title <- "【アジア】陽性者数(単日)"
@@ -178,7 +185,7 @@ sec_scale <- 50
 dbreaks <- "1 month"
 dlabels <- "%y-%m"
 dvline <- lubridate::as_date("2021-01-08")
-ncol <- 1
+ncol <- 2
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
@@ -201,7 +208,7 @@ subset %>%
 ```
 
 
-## 欧米
+## 欧州
 ```{r}
 df_Western_daily <- df_csse_ts %>% 
   dplyr::filter(Country_Region %in% c("France", "Germany", "Italy", "Spain",
@@ -209,6 +216,7 @@ df_Western_daily <- df_csse_ts %>%
                                       "United Kingdom")) %>% 
   # tidyr::unite(col = "Country", Country_Region, Providence_State, sep = ", ") %>% 
   dplyr::filter(is.na(Providence_State)) %>% 
+  dplyr::arrange(date) %>% 
   dplyr::group_by(Country_Region) %>% 
   dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
   dplyr::ungroup()
@@ -216,7 +224,7 @@ df_Western_daily <- df_csse_ts %>%
 df_Western_daily
 ```
 
-```{r, fig.height=20, fig.width=10, echo=FALSE}
+```{r, echo=FALSE}
 subset <- df_Western_daily %>% dplyr::mutate(key = Country_Region)
 title <- "【欧米】陽性者数(単日)"
 xlab <- ""
@@ -225,7 +233,7 @@ sec_scale <- 50
 dbreaks <- "3 month"
 dlabels <- "%y-%m"
 dvline <- lubridate::as_date("2021-01-08")
-ncol <- 1
+ncol <- 2
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
