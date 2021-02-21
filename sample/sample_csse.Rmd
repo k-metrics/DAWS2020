@@ -102,7 +102,7 @@ daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
 }
 
 subtitle <- paste0("Generated @", lubridate::now())
-caption <- "Data Source: Tokyo Open Data"
+caption <- "Data Source: CSSE, Johns Hopkins University"
 ```
 
 # Import
@@ -182,7 +182,7 @@ title <- "【アジア】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
-dbreaks <- "1 month"
+dbreaks <- "3 month"
 dlabels <- "%y-%m"
 dvline <- lubridate::as_date("2021-01-08")
 ncol <- 2
