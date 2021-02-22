@@ -182,7 +182,7 @@ title <- "【アジア】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
-dbreaks <- "3 month"
+dbreaks <- "2 month"
 dlabels <- "%y-%m"
 dvline <- lubridate::as_date("2021-01-08")
 ncol <- 2
@@ -230,7 +230,7 @@ title <- "【欧米】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
-dbreaks <- "3 month"
+dbreaks <- "2 month"
 dlabels <- "%y-%m"
 dvline <- lubridate::as_date("2021-01-08")
 ncol <- 2
