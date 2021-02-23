@@ -1,6 +1,9 @@
 データ分析勉強会2020
 ================
 
+**注意）**  
+最新データを利用したい場合は[こちらのリポジトリ](https://github.com/k-metrics/Covid19Data)から取得してください。
+
 ## 分析大会について
 
 今回の分析大会は成果を競い合う場ではなく、今まで学んだことをベースとして集計データと個票データの扱いを実習を通して学ぶ場にしたいと考えています。なお、分析に利用する環境・ツールは限定しません。
@@ -99,7 +102,10 @@ BY-NC 4.0）](https://github.com/reustle/covid19japan-data/tree/master/docs/pati
 | Google\_Forecast\_YYYY-MM-DD.csv   | Googleの予測データ            | UTF-8  |
 | NHK\_YYYY-MM-DD.csv                | NHKの都道府県別日時集計（単日・累計）データ | UTF-8  |
 
-`YYYY-MM-DD`は取得日
+`YYYY-MM-DD`は取得日 　
+
+※
+データを[別リポジトリ](https://github.com/k-metrics/Covid19Data)へ移動しましたので、最新データは[別リポジトリ](https://github.com/k-metrics/Covid19Data)から取得してください。
 
 　
 
@@ -270,4 +276,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki (Update: 2021-02-18 10:10:59)
+Sampo Suzuki (Update: 2021-02-23 16:59:52)
