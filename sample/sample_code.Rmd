@@ -1057,6 +1057,43 @@ subset %>%
 
 　  
 
+## 緊急事態宣言地域比較
+```{r, echo=FALSE, fig.height=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県"))
+title <- "【都道府県別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_hline(ggplot2::aes(yintercept = ma7, colour = key),
+                        data = subset(subset, date == max(date)),
+                        size = 0.5, linetype = "dotted") +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
 ---
 [CC 4.0 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki
 
