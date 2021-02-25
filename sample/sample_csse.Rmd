@@ -176,7 +176,7 @@ df_asia_daily
 # Visualize
 
 ## 亜細亜
-```{r, echo=FALSE}
+```{r, fig.height=8, echo=FALSE}
 subset <- df_asia_daily %>% dplyr::mutate(key = Country_Region)
 title <- "【アジア】陽性者数(単日)"
 xlab <- ""
