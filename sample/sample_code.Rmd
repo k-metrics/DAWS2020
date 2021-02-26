@@ -1133,7 +1133,8 @@ subset %>%
 ```{r, echo=FALSE, fig.height=40, fig.width=10}
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
-                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>% 
+                            "埼玉県", "千葉県", "神奈川県", "福岡県")) %>%
+                            # "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>%
   dplyr::filter(date >= lubridate::as_date("2020-12-01"))
 title <- "【緊急事態宣言地域】陽性者数前日差ヒートマップ"
 xlab <- ""
@@ -1152,7 +1153,11 @@ subset %>%
                                        weeks + max(weeks), weeks)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = diff)) + 
     ggplot2::geom_tile() + 
-    ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
+    # ggplot2::scale_fill_gradient2() + 
+    ggplot2::scale_fill_gradient2(low = scales::muted("blue"),
+                                  mid = "white",
+                                  high = scales::muted("red")) +
+    # ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
     ggplot2::geom_text(ggplot2::aes(label = paste0(lubridate::month(date),
                                                    "/",
                                                    lubridate::mday(date))),
