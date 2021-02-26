@@ -245,3 +245,93 @@ subset %>%
                   x = xlab, y = ylab)
 
 ```
+
+
+
+```{r, fig.height=8.5, echo=FALSE}
+subset <- tokyo_daily %>% 
+  dplyr::filter(date >= lubridate::as_date("2020-12-01"))
+title <- "【東京都】前日差ヒートマップ（上段：日付 [陽性者数]／下段：前日差 (7日間移動平均)）"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = diff)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
+    ggplot2::geom_text(ggplot2::aes(label = paste0(lubridate::month(date),
+                                                   "/",
+                                                   lubridate::mday(date),
+                                                   " [",
+                                                   n, "]")),
+                       vjust = -0.5, colour = "gray35") +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(diff, " (", round(ma7, 1),
+                                                   ")")),
+                       vjust = 1.5) +
+    ggplot2::scale_y_reverse(breaks = NULL) +
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+```{r, fig.height=8.5, echo=FALSE}
+subset <- tokyo_daily %>% 
+  dplyr::filter(date >= lubridate::as_date("2020-12-01"))
+title <- "【東京都】前日差ヒートマップ（上段：日付／下段：前日差）"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = diff)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
+    ggplot2::geom_text(ggplot2::aes(label = paste0(lubridate::month(date),
+                                                   "/",
+                                                   lubridate::mday(date))),
+                       vjust = -0.5, colour = "gray35") +
+    ggplot2::geom_text(ggplot2::aes(label = diff), vjust = 1.5) +
+    ggplot2::scale_y_reverse(breaks = NULL) +
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+
+```{r, echo=FALSE}
+subset <- tokyo_daily %>%
+  dplyr::filter(date >= lubridate::as_date("2020-12-01"))
+title <- "【東京都】陽性者数推移"
+xlab <- ""
+ylab <- ""
+sec_scale <- 20
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 3
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), fill = "gray50", stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), colour = "gray25",
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale), colour = "dark green") +
+    ggplot2::geom_vline(xintercept = dvline, size = 0.2, colour = "dark red") +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggplot2::theme(legend.position = 'none') +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
