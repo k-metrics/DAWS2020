@@ -208,6 +208,90 @@ subset %>%
 ```
 
 
+### 香港
+```{r}
+subset <- df_csse_ts %>% 
+  dplyr::filter(Country_Region == "China" & Providence_State == "Hong Kong") %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup()
+
+title <- "【香港】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+# dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale)) +
+    # ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+
+```
+
+### 支那
+```{r, fig.height=10, echo=FALSE}
+title <- "【アジア】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+ncol <- 2
+
+df_csse_ts %>% 
+  # dplyr::filter(Country_Region == "China") %>% 
+  dplyr::filter(Country_Region %in% c("China", "India", "Indonesia", "Japan",
+                                      "Korea, South", "Malaysia", "Mongolia",
+                                      "Philippines", "Singapore", "Taiwan*",
+                                      "Thailand", "Vietnam")) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region, date) %>% 
+  dplyr::summarise(cum = sum(cum)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(key = Country_Region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+
+```
+
+
+
+
 ## 欧州
 ```{r}
 df_Western_daily <- df_csse_ts %>% 

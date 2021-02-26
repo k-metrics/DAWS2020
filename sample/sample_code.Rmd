@@ -1128,6 +1128,41 @@ subset %>%
                   x = xlab, y = ylab)
 ```
 
+
+### ヒートマップ
+```{r, echo=FALSE, fig.height=40, fig.width=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>% 
+  dplyr::filter(date >= lubridate::as_date("2020-12-01"))
+title <- "【緊急事態宣言地域】陽性者数前日差ヒートマップ"
+xlab <- ""
+ylab <- ""
+sec_scale <- 20
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = diff)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
+    ggplot2::geom_text(ggplot2::aes(label = paste0(lubridate::month(date),
+                                                   "/",
+                                                   lubridate::mday(date))),
+                       vjust = -0.5, colour = "gray35") +
+    ggplot2::geom_text(ggplot2::aes(label = diff), vjust = 1.5) +
+    ggplot2::scale_y_reverse(breaks = NULL) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) +
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
 　  
 
 ---
