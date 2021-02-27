@@ -1,0 +1,254 @@
+---
+title: "Saitama"
+output:
+  html_document:
+    code_folding : show
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
+require(tidyverse)
+require(jsonlite)
+require(zoo)
+require(rvest)
+
+lagdiff <- function(n) {
+  if (missing(n)) {
+    return(NULL)
+  } else {
+    return(n - dplyr::lag(n, default = 0L))
+  }
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+ma <- function(n, k = 7L) {
+  zoo::rollmeanr(n, k = k, na.pad = TRUE)
+}
+
+# Non-standard evaluation
+# https://www.marketechlabo.com/r-function-using-nse/
+daily_aggregate <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+  
+    df %>% 
+      dplyr::group_by(!!date, !!key) %>% 
+      dplyr::summarise(n = dplyr::n()) %>% 
+      dplyr::ungroup() %>% 
+      tidyr::complete(
+        date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+        !!key, fill = list(n = 0L)
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      tidyr::nest() %>%
+      dplyr::mutate(
+        diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+        cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+        ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+        ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+      ) %>% 
+      tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+      return()
+  }
+}
+
+daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::group_by(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+      dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date)
+    }
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: Tokyo Open Data"
+```
+
+# Import
+```{r}
+# pattern <- paste0(lubridate::today() %>% stringr::str_remove_all(pattern = "-"),
+#                   ".csv")
+
+saitama_df <- "https://opendata.pref.saitama.lg.jp/data/dataset/covid19-jokyo" %>% 
+  xml2::read_html() %>% 
+  rvest::html_nodes(css = "a") %>%
+  rvest::html_attr(name = "href") %>% 
+  stringr::str_subset(pattern = ".csv") %>% 
+  tail(n = 1L) %>% 
+  # stringr::str_subset(pattern = pattern) %>% 
+  readr::read_csv(file = ., locale = readr::locale(encoding = "CP932")) %>%
+  # readr::write_excel_csv("temp.csv")
+  dplyr::mutate(date = lubridate::as_date(`判明日`),
+                ageBracket = as.factor(`年代`) %>% 
+                  forcats::fct_collapse(`不明` = c("-", "調査中"),
+                                        `100歳以上` = c("100代", "100歳以上",
+                                                     "100歳\n以上", "90代以上"),
+                                        `10歳未満` = c("10代未満", "10歳未満",
+                                                    "未就学児"),
+                                        `90代` = c("90代", "90歳以上"),
+                                        `10代` = c("10代", "未成年")) %>% 
+                  forcats::fct_relevel("10歳未満", "10代", "20代", "30代",
+                                       "40代", "50代", "60代", "70代",
+                                       "80代", "90代", "100歳以上",
+                                       "不明") %>% 
+                  forcats::fct_explicit_na(na_level = "不明"),
+                gender = forcats::as_factor(`性別`) %>% 
+                  forcats::fct_collapse(`不明` = c("-", "不明", "調査中"),
+                                        `男性` = c("男性", "男性　"),
+                                        `女性` = c("女性", "女児")) %>% 
+                  forcats::fct_relevel("男性", "女性", "不明") %>% 
+                  forcats::fct_explicit_na(na_level = "不明")) %>% 
+  dplyr::select(date, ageBracket, gender, city = `居住地`) %>% 
+  tidyr::drop_na(date)
+
+saitama_df
+```
+
+　  
+
+# Data wrangling
+
+　  
+
+## 日別
+```{r}
+saitama_daily <- saitama_df %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date, na.rm = TRUE), by = "day"),
+    fill = list(n = 0L)
+  ) %>% 
+  dplyr::mutate(
+    diff = lagdiff(n),   # 前日差
+    cum = cumsum(n),     # 累計
+    ma7 = ma7(n),        # 移動平均（7日）
+    ma28 = ma28(n)       # 移動平均（28日）
+  )
+
+saitama_daily
+```
+
+　  
+
+## 年代別
+```{r}
+saitama_ageBracket_daily <- saitama_df %>% 
+  daily_aggregate(date, ageBracket)
+
+saitama_ageBracket_daily
+```
+
+　  
+
+# Visualize
+```{r}
+saitama_ageBracket_daily %>% 
+  # dplyr::filter(date == max(date - 1))
+  dplyr::filter(date == max(date))
+```
+
+　  
+
+```{r, fig.height=20, fig.width=10, echo=FALSE}
+subset <- saitama_ageBracket_daily %>% dplyr::mutate(key = ageBracket)
+title <- "【年代別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 1
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- saitama_ageBracket_daily %>% dplyr::mutate(key = ageBracket)
+title <- "【年代別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(date >= lubridate::as_date("2020-12-01")) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```

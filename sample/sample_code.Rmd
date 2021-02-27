@@ -1,0 +1,1227 @@
+---
+title: "個票データの集計処理例"
+output:
+  html_document:
+    code_folding : show
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
+require(tidyverse)
+require(jsonlite)
+require(zoo)
+
+lagdiff <- function(n) {
+  if (missing(n)) {
+    return(NULL)
+  } else {
+    return(n - dplyr::lag(n, default = 0L))
+  }
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+ma <- function(n, k = 7L) {
+  zoo::rollmeanr(n, k = k, na.pad = TRUE)
+}
+
+# Non-standard evaluation
+# https://www.marketechlabo.com/r-function-using-nse/
+daily_aggregate <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+  
+    df %>% 
+      dplyr::group_by(!!date, !!key) %>% 
+      dplyr::summarise(n = dplyr::n()) %>% 
+      dplyr::ungroup() %>% 
+      tidyr::complete(
+        date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+        !!key, fill = list(n = 0L)
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      tidyr::nest() %>%
+      dplyr::mutate(
+        diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+        cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+        ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+        ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+      ) %>% 
+      tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+      return()
+  }
+}
+
+daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::group_by(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+      dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
+    }
+}
+
+daily_aggregate3 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::count(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      # dplyr::ungroup() %>%                # 最後にungroupは必要？
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
+    }
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: covid19japan.com"
+```
+
+# 関数定義ほか
+単日データを処理するための関数を定義しておきます。
+
+関数名       | 処理概要                                    | 必要なパッケージ
+-------------|---------------------------------------------|------------------
+`lagdiff(n)` | 単日データの前日差を求める                  | `dplyr`
+`ma7(n)`     | 単日データの7日間（1週間）移動平均を求める  | `zoo`
+`ma28(n)`    | 単日データの28日間（4週間）移動平均を求める | `zoo`
+`ma(n, k)`   | 単日データのk日間移動平均を求める           | `zoo`
+
+```{r, eval=FALSE}
+lagdiff <- function(n) {        # 前日差を求める関数
+  n - dplyr::lag(n, default = 0L)
+}
+
+ma7 <- function(n) {            # 移動平均(7日)を求める関数
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {           # 移動平均(28日)を求める関数
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+ma <- function(n, k = 7L) {     # 移動平均(k日)を求める関数
+  zoo::rollmeanr(n, k = k, na.pad = TRUE)
+}
+```
+
+   
+累計は Base R の `cumsum` 関数を利用します。  
+
+　  
+その他、グラフで繰り返し使う文字列を変数として定義しておきます。
+```{r, eval=FALSE}
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: covid19japan.com"
+```
+
+　  
+
+# Import & Tidy
+個票データの集計に限らず、データをインポートした際には目的に応じて各変量（変数）の変数型を変更します。特に水準ごとに層別処理を行いたい場合には因子型に変換しておくと便利です。また、結合したいデータと名称や体系を合わせておくこともポイントです。
+
+　  
+
+## 都道府県データ
+都道府県に関するデータは Gist で公開しているデータを用います。データ都道府県コード順に並んでいますので、この並びを利用して `forcats` パッケージを用いて因子化します。Base R
+の `as.factor` 関数を用いると水準がアルファニューメリック順に並べ変えられてしまう点に注意してください。
+```{r}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/f4ea87f429e1ca28627feff94b67c8b2432aee59/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(
+    # Googleの予測データと結合するためにコード体系を合わせる
+    japan_prefecture_code = paste0("JP-", `コード`)
+  ) %>% 
+  dplyr::select(
+    # Googleの予測データと結合するために名称を変更する
+    japan_prefecture_code,　prefecture_name = pref,
+    # 日本語の変数名は扱いにくいので英語名に変更する
+    pref = `都道府県`, region = `八地方区分`, pops = `推計人口`
+  ) %>% 
+  dplyr::mutate(
+    # 水準ごとに表示させるために因子化する（あらかじめデータをコード順に
+    # 並べておくことが因子化の際のポイントのひとつ）
+    japan_prefecture_code = forcats::fct_inorder(japan_prefecture_code),
+    pref = forcats::fct_inorder(pref),
+    region = forcats::fct_inorder(region),
+    pops = as.integer(pops)
+  )
+
+prefs
+```
+
+　  
+
+## Covid19Japan個票データ
+個票データは [Covid19Japan.com のデータリポジトリ](https://github.com/reustle/covid19japan-data/) で公開されているデータを用います。データは参照しているソースが更新されると自動的に更新されますので、取得タイミングによっては全てのデータが揃っていない可能性があります。  
+JSON形式データの各項目については [データフォーマット](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参照してください。
+```{r}
+df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  # JSON形式をデータフレームとして読み込む
+  jsonlite::fromJSON() %>% 
+  dplyr::select(patientId, date = dateAnnounced, gender,
+                pref = detectedPrefecture, patientStatus, knownCluster,
+                confirmedPatient, ageBracket,
+                deceasedDate, deceasedReportedDate) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(
+    date = lubridate::as_date(date),
+    gender = forcats::as_factor(gender),
+    pref = stringr::str_to_lower(pref),
+    patientStatus = forcats::as_factor(patientStatus),
+    cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+    ageBracket = forcats::as_factor(ageBracket),
+    deceasedDate = lubridate::as_date(deceasedDate),
+    deceasedReportedDate = lubridate::as_date(deceasedReportedDate)
+  ) %>% 
+  # 都道府県データと結合
+  dplyr::left_join(prefs, by = c("pref" = "prefecture_name")) %>% 
+  dplyr::select(-pref) %>% 
+  dplyr::rename(pref = pref.y) %>% 
+  # 因子型の欠損値を水準化する
+  dplyr::mutate(
+    japan_prefecture_code = forcats::fct_explicit_na(japan_prefecture_code,
+                                                     na_level = "JP-48"),
+    pref = forcats::fct_explicit_na(pref, na_level = "空港検疫"),
+    region = forcats::fct_explicit_na(region, na_level = "空港検疫"),
+    gender = forcats::fct_explicit_na(gender, na_level = "非公表"),
+    ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
+    patientStatus = forcats::fct_explicit_na(patientStatus,
+                                             na_level = "Unknown")
+  )
+
+df
+```
+
+　  
+作成したデータフレームを確認します。意外と欠損値（`n_missing`項参照）が多いデータであることが分かります。
+```{r}
+df %>% 
+  skimr::skim()
+```
+
+　  
+
+# Data Wrangling
+
+　  
+
+## 単純集計
+最初に単純集計を行ってみます。  
+
+　  
+
+### 全国集計
+全国集計は日付データ（`data`）に基づく日次の単純集計です。厚生労働省のオープンデータにおける陽性者数データに相当します。単純集計は `dplyr::group_by` と `dplyr::summrise` を用いることで簡単に計数できます。ただし、データがない日は集計結果として現れませんので `tidyr::complete` で補完しておく必要があります。  
+その後、集計結果を元に前日差、累計、移動平均を計算します。
+```{r}
+japan_daily <- df %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    fill = list(n = 0L)
+  ) %>% 
+  dplyr::mutate(
+    diff = lagdiff(n),   # 前日差
+    cum = cumsum(n),     # 累計
+    ma7 = ma7(n),        # 移動平均（7日）
+    ma28 = ma28(n)       # 移動平均（28日）
+  )
+
+japan_daily
+```
+
+　  
+
+変数 | 変数の意味           | 変数型  | 備考
+-----|----------------------|---------|-----------------
+date | 陽性判定者の報告日   | Date    | 陽性判定日とは異なる
+n    | 陽性判定者数         | Integer | 
+diff | 同前日差             | Integer | 初日は陽性判定者数に同じ
+cum  | 同累計               | Integer | 
+ma7  | 同移動平均（7日）    | Double  | 
+ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月相当）
+
+　  
+
+集計計算は `dplyr::count` を利用しても構いません。
+```{r}
+df %>% 
+  dplyr::count(date) # group_by(date) %>% summarize(n = n()) と等価
+```
+
+　  
+
+### 各変数別集計
+`dplyr::group_by` で指定する変数を変えることで各変数の水準ごとの集計ができます。これは、前述の `skimr::skim` によるサマリーと同値になりますので下記以外の集計は省略します。
+```{r}
+df %>% 
+  dplyr::group_by(gender) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup()
+```
+
+　  
+
+## クロス集計
+クロス集計は日付と地方区分、日付と都道府県などのように複数の変数における水準ごとの集計です。`table`などを利用しても集計可能ですが、`ggplot2` パッケージによる可視化を考慮し、ここではデータフレームを用いた集計を行います。  
+　  
+以下のような構造を取る個票データをクロス集計するとします。
+```{r, eval=FALSE}
+df <- data.frame(
+  date,   # Date型の日付データ
+  key,    # グルーピングのためのデータ（例：都道府県、地方区分など）
+  ...     # 順不同
+)
+```
+
+基本的には単純集計と同じで `dplyr::group_by` と `dplyr::summarize` で集計します。補完も単純集計と同じく `tidyr::complete` で行うことができます。
+```{r, eval=FALSE}
+x <- df %>% 
+  dplyr::group_by(date, key) %>%      # クロス集計対象を指定する
+  dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+  dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+  tidyr::complete(                      # 暗黙の欠損を補完する
+    date = seq.Date(from = min(date), to = max(date), by = "day"), key,
+    fill = list(n = 0L)              # 個票がない=陽性者ゼロ
+  )
+```
+
+　  
+
+クロス集計も `dplyr::count` で同様に処理できます。
+```{r}
+df %>% 
+  dplyr::count(date, gender) 
+                     # group_by(date, gender) %>% summarize(n = n()) と等価
+```
+
+　  
+
+クロス集計後に前日差や累計などを算出するには `tidyr::nest`,`tidyr::unnest` と `purrr` パッケージを組み合わせた処理が確実かつ高速です。
+```{r, eval=FALSE}
+x %>% 
+  dplyr::group_by(key) %>%            # 上記の日次集計を元に各種計算を行う場合
+  tidyr::nest() %>%                   # nest & unnest 処理を利用すると確実
+  dplyr::mutate(                      # ネストしたデータはpurrrで処理する
+    diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+    cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+    ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+    ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+  ) %>% 
+  tidyr::unnest(cols = c(data, diff, cum, ma7, ma28))
+```
+
+　  
+`purrr` パッケージの使い方がよく分からない場合は以下の方法でも可能です。
+```{r, eval=FALSE}
+x %>% 
+  dplyr::group_by(key) %>%            # ここがポイント
+  dplyr::mutate(
+    diff = lagdiff(n),
+    cum = cumsum(n),
+    ma7 = ma7(n),
+    ma28 = ma28(n)
+  ) %>% 
+  dplyr::ungroup()
+```
+
+```{r, include=FALSE, eval=FALSE}
+system.time(
+  df_nest <- df %>%  daily_aggregate(date, region)
+)
+
+system.time(
+  df_mutate <- df %>% daily_aggregate2(date, region)
+)
+
+df_nest
+df_mutate
+
+df_nest - df_mutate
+```
+
+　  
+
+### 地方区分別集計
+前述のクロス集計処理を `daily_aggregate` 関数として定義しているので、これを用いて集計を行っています。
+```{r}
+region_daily <- df %>% 
+  daily_aggregate(date, region)   # 前述の集計処理を関数化したもの
+
+region_daily
+```
+
+```{r, eval=FALSE, include=FALSE}
+region_daily <- df %>% 
+  daily_aggregate3(date, region)   # 前述の集計処理を関数化したもの
+
+region_daily
+```
+　  
+
+### 都道府県別集計
+地方区分集計と同様に集計します。
+```{r}
+pref_daily <- df %>% 
+  daily_aggregate(date, pref)
+
+pref_daily
+```
+
+　  
+
+### 年代別集計
+```{r}
+ageBracket_daily <- df %>% 
+  daily_aggregate(date, ageBracket)
+
+ageBracket_daily
+```
+
+　  
+年代別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
+
+　  
+
+### クラスター別集計
+```{r}
+cluster_daily <- df %>% 
+  daily_aggregate(date, cluster)
+
+cluster_daily
+```
+
+　  
+クラスター別の地方区分別集計ならびに都道府県別集計は割愛します。理由はVisualize章のグラフを見て頂ければ分かると思います。
+
+　  
+
+# Visualize
+作成した集計データを可視化します。
+　  
+
+## 陽性判定者数
+
+　  
+
+### 全国集計
+```{r}
+japan_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
+単日と累計が二桁違うので、縦二軸のグラフを描きます。
+```{r}
+title <- "【全国】陽性者数(単日)"
+xlab <- ""
+ylab <- ""
+sec_scale <- 50   # 縦二軸のスケーリング
+
+japan_daily %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+                      fill = "dark gray", alpha = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "solid",
+                       colour = "gray10", size = 0.5) + 
+    # 第二軸を利用するグラフを描画する際はスケーリング調整する必要あり
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+                       colour = "dark green", size = 1.0) +
+    # 横軸表示の指定
+    ggplot2::scale_x_date(date_breaks = "1 month", date_labels = "%y/%m") + 
+    # 二軸表示のための軸属性の指定
+    ggplot2::scale_y_continuous(
+      # 第一軸のラベル（スケールは自動調整）
+      name = "陽性者数（灰）・移動平均（黒）",
+      # 第二軸の指定（第一軸にあわせたスケーリング）
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                   name = "累積陽性者数（濃緑）")) + 
+    # 縦軸の装飾
+    ggplot2::theme(
+      axis.text.y.left = ggplot2::element_text(colour = "gray10"),
+      axis.line.y.left = ggplot2::element_line(colour = "gray10"),
+      axis.text.y.right = ggplot2::element_text(colour = "dark green"),
+      axis.line.y.right = ggplot2::element_line(colour = "dark green")
+    ) +
+    # グラフ全体のラベル指定
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+以降、描画コードは割愛しますが、このように個票を任意の変数の水準ごとに集計すると様々なデータの見かたができるようになります。
+
+　  
+
+#### 同前日差
+```{r, echo=FALSE}
+subset <- japan_daily %>% dplyr::mutate(y = diff)
+title <- "【全国】前日差(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y)) + 
+    ggplot2::geom_line(colour = "dark green", alpha = 0.5) +
+    ggplot2::scale_x_date(date_breaks = "1 month", date_labels = "%y/%m") + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+#### 同ヒートマップ
+```{r}
+japan_daily %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    # ggplot2::coord_equal() + 
+    # ggplot2::coord_flip() + 
+    ggplot2::labs(title = "陽性者数ヒートマップ", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r}
+japan_daily %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n)) + 
+    ggplot2::geom_violin(ggplot2::aes(fill = weekday), alpha = 0.25) +
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.1) + 
+    ggplot2::stat_summary(ggplot2::aes(group = 1, colour = weekday),
+                          fun.y = median, geom = "line") + 
+    ggplot2::geom_boxplot(width = 0.1) +
+    ggplot2::labs(title = "曜日別陽性者数分布", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+　  
+参考までに箱ひげ図で示されている各分位数（陽性者ゼロの日を除き小数点以下は丸めてあります）は以下の通りです。
+```{r, echo=FALSE}
+japan_daily %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  dplyr::group_by(weekday) %>% 
+  dplyr::summarise(fn = fivenum(n) %>% round(., digits = 0)) %>% 
+  tidyr::pivot_wider(names_from = weekday, values_from = fn) %>% 
+  tidyr::unnest() %>% 
+  dplyr::arrange(dplyr::desc(.)) %>% 
+  dplyr::bind_cols(data.frame(`分位数` = c("最大値", "第3四分位数",
+                                           "中央値（第2四分位数）",
+                                           "第1四分位数", "最小値")),
+                   .)
+```
+
+　  
+
+```{r, fig.height=20}
+japan_daily %>% 
+  dplyr::mutate(month = dplyr::if_else(lubridate::year(date) > 2020,
+                                       lubridate::month(date) + 12,
+                                       lubridate::month(date))) %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n)) + 
+    ggplot2::geom_violin(ggplot2::aes(fill = weekday), alpha = 0.25) +
+    ggplot2::stat_summary(ggplot2::aes(group = 1, colour = weekday),
+                          fun.y = median, geom = "line") + 
+    ggplot2::geom_boxplot(width = 0.1) +
+    ggplot2::facet_wrap(~ month, nrow = 12, scales = "fixed", dir = "v") + 
+    ggplot2::labs(title = "曜日別・月別陽性者数分布", x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+### 地方区分別集計
+```{r, echo=FALSE}
+region_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = n)
+title <- "【地方別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y)) + 
+    ggplot2::geom_bar(ggplot2::aes(fill = key), stat = "identity",
+                      width = 1.0, alpha = 0.5) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption, 
+                  x = xlab, y = ylab)
+```
+
+　  
+
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = n)
+title <- "【地方別】単日"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 0.5) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+#### 同累計
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = cum)
+title <- "【地方別】累計"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+#### 同移動平均（7日）
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = ma7)
+title <- "【地方別】移動平均(7日)"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+#### 同移動平均（28日）
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = ma28)
+title <- "【地方別】移動平均(28日)"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+#### 同前日差
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = diff)
+title <- "【地方別】前日差(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(alpha = 0.75) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+#### 同ヒートマップ
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region)
+title <- "【地方別】陽性者数ヒートマップ"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  # print() %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    # ggplot2::coord_equal() + 
+    # ggplot2::coord_flip() + 
+    # ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図（曜日別）
+```{r, fig.height=10, fig.width=10, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region)
+title <- "【地方別】曜日別陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r}
+subset <- region_daily %>% dplyr::mutate(key = region)
+title <- "【地方別】陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(n > 0) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
+                               y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+
+
+
+　  
+
+### 都道府県別
+```{r, echo=FALSE}
+pref_daily %>% 
+  dplyr::filter(date == max(date))
+```
+
+```{r, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref, y = n)
+title <- "【都道府県別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 0.5) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 35, segment.alpha = 0.5, size = 3.5) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+#### 同前日差
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref, y = diff)
+title <- "【都道府県別】前日差(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(alpha = 0.75) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+#### 同ヒートマップ
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】陽性者数ヒートマップ"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = n)) + 
+    ggplot2::geom_tile() + 
+    ggplot2::scale_fill_gradient(low = "white", high = "red") + 
+    ggplot2::facet_wrap(~ key, ncol = ncol) + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r, fig.height=30, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】曜日別陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(n > 0) %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::theme(legend.position = 'none') +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図
+```{r, fig.height=15, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】陽性者数分布"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(n > 0) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
+                               y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::scale_y_continuous(sec.axis = ggplot2::sec_axis(~ .)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+#### 同箱ひげ図（直近3ヶ月）
+```{r, fig.height=15, fig.width=10, echo=FALSE}
+subset <- pref_daily %>% dplyr::mutate(key = pref)
+title <- "【都道府県別】陽性者数分布（直近3ヶ月）"
+xlab <- ""
+ylab <- ""
+ncol <- 3
+
+subset %>% 
+  dplyr::filter(date > (lubridate::today() - 90)) %>% 
+  dplyr::filter(n > 0) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = reorder(key, n, median),
+                               y = n, colour = key)) + 
+    ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
+    ggplot2::geom_boxplot() +
+    ggplot2::scale_y_continuous(sec.axis = ggplot2::sec_axis(~ .)) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::coord_flip() + 
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+
+　  
+
+### 年代別
+```{r, echo=FALSE}
+subset <- ageBracket_daily %>% dplyr::mutate(key = ageBracket, y = n)
+title <- "【年代別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y)) + 
+    ggplot2::geom_bar(ggplot2::aes(fill = key), stat = "identity",
+                      width = 1.0, alpha = 0.5) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption, 
+                  x = xlab, y = ylab)
+```
+
+　  
+
+### クラスター別
+```{r, echo=FALSE}
+subset <- cluster_daily %>% dplyr::mutate(key = cluster, y = n)
+title <- "【クラスター別】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date, y = y)) + 
+    ggplot2::geom_bar(ggplot2::aes(fill = key), stat = "identity",
+                      width = 1.0, alpha = 0.5) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption, 
+                  x = xlab, y = ylab)
+```
+
+　  
+
+### 対数化
+
+#### 地方区分（累計）
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = cum)
+title <- "【地方別】累計"
+xlab <- ""
+ylab <- "陽性者数（常用対数）"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::scale_y_log10() + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab) 
+```
+
+　  
+
+#### 同移動平均（7日）
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = ma7)
+title <- "【地方別】移動平均（7日）"
+xlab <- ""
+ylab <- "陽性者数（常用対数）"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::scale_y_log10() + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+#### 同移動平均（28日）
+```{r, echo=FALSE}
+subset <- region_daily %>% dplyr::mutate(key = region, y = ma28)
+title <- "【地方別】移動平均（28日）"
+xlab <- ""
+ylab <- "陽性者数（常用対数）"
+dbreaks <- "1 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+    ggplot2::ggplot(ggplot2::aes(x = date, y = y, colour = key)) + 
+    ggplot2::geom_line(size = 1) +
+    ggplot2::theme(legend.position = 'none') +
+    ggrepel::geom_text_repel(ggplot2::aes(label = key),
+                             data = subset(subset, date == max(date)),
+                             nudge_x = 30, segment.alpha = 0.5, size = 4) + 
+    ggplot2::lims(x = c(min(subset$date),
+                        max(subset$date) + 45)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::scale_y_log10() + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+
+## 緊急事態宣言地域比較
+```{r, echo=FALSE, fig.height=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県"))
+title <- "【緊急事態宣言対象】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_hline(ggplot2::aes(yintercept = ma7, colour = key),
+                        data = subset(subset, date == max(date)),
+                        size = 0.5, linetype = "dotted") +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+
+```{r, echo=FALSE, fig.height=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>% 
+  dplyr::filter(date >= lubridate::as_date("2021-01-08"))
+title <- "【緊急事態宣言対象】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_hline(ggplot2::aes(yintercept = ma7, colour = key),
+                        data = subset(subset, date == max(date)),
+                        size = 0.5, linetype = "dotted") +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+
+### ヒートマップ
+```{r, echo=FALSE, fig.height=40, fig.width=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "埼玉県", "千葉県", "神奈川県", "福岡県")) %>%
+                            # "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>%
+  dplyr::filter(date >= lubridate::as_date("2020-12-01"))
+title <- "【緊急事態宣言地域】陽性者数前日差ヒートマップ"
+xlab <- ""
+ylab <- ""
+sec_scale <- 20
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+
+subset %>% 
+  dplyr::mutate(weekday = lubridate::wday(date, label = TRUE),
+                weeks = lubridate::epiweek(date)) %>% 
+  dplyr::mutate(weeks = dplyr::if_else(date > "2021-01-02",
+                                       weeks + max(weeks), weeks)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = weekday, y = weeks, fill = diff)) + 
+    ggplot2::geom_tile() + 
+    # ggplot2::scale_fill_gradient2() + 
+    ggplot2::scale_fill_gradient2(low = scales::muted("blue"),
+                                  mid = "white",
+                                  high = scales::muted("red")) +
+    # ggplot2::scale_fill_gradientn(colours = c("blue", "white", "red")) + 
+    ggplot2::geom_text(ggplot2::aes(label = paste0(lubridate::month(date),
+                                                   "/",
+                                                   lubridate::mday(date))),
+                       vjust = -0.5, colour = "gray35") +
+    ggplot2::geom_text(ggplot2::aes(label = diff), vjust = 1.5) +
+    ggplot2::scale_y_reverse(breaks = NULL) +
+    ggplot2::facet_wrap(~ key, ncol = ncol) +
+    ggplot2::labs(title = title, x = "", y = "",
+                  subtitle = subtitle, caption = caption)
+```
+　  
+
+---
+[CC 4.0 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja), Sampo Suzuki
+

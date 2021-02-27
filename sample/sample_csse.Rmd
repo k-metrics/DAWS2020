@@ -1,0 +1,341 @@
+---
+title: "Center for Systems Science and Engineering (CSSE) at Johns Hopkins University"
+output:
+  html_document:
+    code_folding : show
+    df_print: paged
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 8, fig.height = 6)
+
+require(tidyverse)
+require(lubridate)
+require(jsonlite)
+require(zoo)
+
+lagdiff <- function(n) {
+  if (missing(n)) {
+    return(NULL)
+  } else {
+    diff <- as.integer((n - dplyr::lag(n, default = 0L)))
+    dplyr::if_else(diff < 0, NA_integer_, diff) %>% 
+      return()
+  }
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+
+ma <- function(n, k = 7L) {
+  zoo::rollmeanr(n, k = k, na.pad = TRUE)
+}
+
+# Non-standard evaluation
+# https://www.marketechlabo.com/r-function-using-nse/
+daily_aggregate <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+  
+    df %>% 
+      dplyr::group_by(!!date, !!key) %>% 
+      dplyr::summarise(n = dplyr::n()) %>% 
+      dplyr::ungroup() %>% 
+      tidyr::complete(
+        date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+        !!key, fill = list(n = 0L)
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      tidyr::nest() %>%
+      dplyr::mutate(
+        diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+        cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+        ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+        ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+      ) %>% 
+      tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+      return()
+  }
+}
+
+daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::group_by(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+      dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date)
+    }
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: CSSE, Johns Hopkins University"
+```
+
+# Import
+```{r}
+df_csse <- (lubridate::today(tzone = "UTC") - 2) %>% 
+  format("%m-%d-%Y") %>% 
+  paste0(".csv") %>% 
+  paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/",
+         .) %>% 
+  readr::read_csv()
+
+df_csse
+
+df_csse %>% 
+  skimr::skim()
+```
+
+
+```{r}
+df_csse %>% 
+  dplyr::mutate(Country_Region = forcats::as_factor(Country_Region)) %>%
+  # .$Country_Region %>% levels()
+  dplyr::filter(Country_Region == "Japan")
+  
+```
+
+
+
+```{r}
+df_csse_ts <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::rename(Providence_State = `Province/State`, Country_Region = `Country/Region`) %>% 
+  dplyr::select(-Lat, -Long) %>%
+  tidyr::pivot_longer(cols = c(-Providence_State, -Country_Region),
+  # tidyr::pivot_longer(cols = c(-Providence_State, -Country_Region, -Lat, -Long),
+                      names_to = "date", values_to = "cum") %>% 
+  dplyr::mutate(date = lubridate::mdy(date),
+                Country_Region = forcats::as_factor(Country_Region))
+
+df_csse_ts
+```
+
+
+```{r}
+df_csse_ts %>% 
+  dplyr::filter(Country_Region == "US") 
+
+# %>% 
+#   dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n))
+```
+
+
+```{r}
+df_asia_daily <- df_csse_ts %>% 
+  dplyr::filter(Country_Region %in% c("India", "Indonesia", "Japan",
+                                      "Korea, South", "Mongolia", "Philippines",
+                                      "Singapore", "Taiwan*", "Thailand",
+                                      "Vietnam")) %>% 
+  # dplyr::filter(is.na(Providence_State)) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup()
+
+df_asia_daily
+```
+
+
+　  
+
+# Visualize
+
+## 亜細亜
+```{r, fig.height=8, echo=FALSE}
+subset <- df_asia_daily %>% dplyr::mutate(key = Country_Region)
+title <- "【アジア】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    # ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+
+### 香港
+```{r}
+subset <- df_csse_ts %>% 
+  dplyr::filter(Country_Region == "China" & Providence_State == "Hong Kong") %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup()
+
+title <- "【香港】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+# dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale)) +
+    # ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") + 
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+
+```
+
+### 支那
+```{r, fig.height=10, echo=FALSE}
+title <- "【アジア】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+ncol <- 2
+
+df_csse_ts %>% 
+  # dplyr::filter(Country_Region == "China") %>% 
+  dplyr::filter(Country_Region %in% c("China", "India", "Indonesia", "Japan",
+                                      "Korea, South", "Malaysia", "Mongolia",
+                                      "Philippines", "Singapore", "Taiwan*",
+                                      "Thailand", "Vietnam")) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region, date) %>% 
+  dplyr::summarise(cum = sum(cum)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(key = Country_Region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+
+```
+
+
+
+
+## 欧州
+```{r}
+df_Western_daily <- df_csse_ts %>% 
+  dplyr::filter(Country_Region %in% c("France", "Germany", "Italy", "Spain",
+                                      "Netherlands", "Norway", "Sweden", 
+                                      "United Kingdom")) %>% 
+  # tidyr::unite(col = "Country", Country_Region, Providence_State, sep = ", ") %>% 
+  dplyr::filter(is.na(Providence_State)) %>% 
+  dplyr::arrange(date) %>% 
+  dplyr::group_by(Country_Region) %>% 
+  dplyr::mutate(n = lagdiff(cum), ma7 = ma7(n), ma28 = ma28(n)) %>% 
+  dplyr::ungroup()
+
+df_Western_daily
+```
+
+```{r, echo=FALSE}
+subset <- df_Western_daily %>% dplyr::mutate(key = Country_Region)
+title <- "【欧米】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+dvline <- lubridate::as_date("2021-01-08")
+ncol <- 2
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) +
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    # ggplot2::geom_vline(xintercept = dvline, size = 0.2) + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme(legend.position = 'none') + 
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
