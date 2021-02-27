@@ -99,6 +99,34 @@ daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
     }
 }
 
+daily_aggregate3 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::count(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      # dplyr::ungroup() %>%                # 最後にungroupは必要？
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
+    }
+}
+
 subtitle <- paste0("Generated @", lubridate::now())
 caption <- "Data Source: covid19japan.com"
 ```
@@ -272,6 +300,14 @@ ma28 | 同移動平均（28日）   | Double  | 4週間（1ヶ月相当）
 
 　  
 
+集計計算は `dplyr::count` を利用しても構いません。
+```{r}
+df %>% 
+  dplyr::count(date) # group_by(date) %>% summarize(n = n()) と等価
+```
+
+　  
+
 ### 各変数別集計
 `dplyr::group_by` で指定する変数を変えることで各変数の水準ごとの集計ができます。これは、前述の `skimr::skim` によるサマリーと同値になりますので下記以外の集計は省略します。
 ```{r}
@@ -302,12 +338,22 @@ x <- df %>%
   dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
   dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
   tidyr::complete(                      # 暗黙の欠損を補完する
-    date = seq.Date(from = min(date), to = max(date), by = "day"),
-    key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+    date = seq.Date(from = min(date), to = max(date), by = "day"), key,
+    fill = list(n = 0L)              # 個票がない=陽性者ゼロ
   )
 ```
 
 　  
+
+クロス集計も `dplyr::count` で同様に処理できます。
+```{r}
+df %>% 
+  dplyr::count(date, gender) 
+                     # group_by(date, gender) %>% summarize(n = n()) と等価
+```
+
+　  
+
 クロス集計後に前日差や累計などを算出するには `tidyr::nest`,`tidyr::unnest` と `purrr` パッケージを組み合わせた処理が確実かつ高速です。
 ```{r, eval=FALSE}
 x %>% 
@@ -362,6 +408,12 @@ region_daily <- df %>%
 region_daily
 ```
 
+```{r, eval=FALSE, include=FALSE}
+region_daily <- df %>% 
+  daily_aggregate3(date, region)   # 前述の集計処理を関数化したもの
+
+region_daily
+```
 　  
 
 ### 都道府県別集計
