@@ -1182,7 +1182,7 @@ subset %>%
 
 
 ### ヒートマップ
-```{r, echo=FALSE, fig.height=40, fig.width=10}
+```{r, echo=FALSE, fig.height=30, fig.width=15}
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
                             "埼玉県", "千葉県", "神奈川県", "福岡県")) %>%
@@ -1195,7 +1195,7 @@ sec_scale <- 20
 dbreaks <- "2 week"
 dlabels <- "%m/%d"
 dvline <- lubridate::as_date("2021-01-08")
-ncol <- 2
+ncol <- 3
 
 
 subset %>% 
