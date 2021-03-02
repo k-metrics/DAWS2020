@@ -542,7 +542,7 @@ japan_daily %>%
 
 　  
 
-> 上グラフは `ggthemes::theme_tufte` を適用し Tufte スタイルで描画しています。右側のデフォルトテーマ（`ggplot2::theme_gray`）で描画したグラフと比べるとインクレシオが低いことが分かります。
+> 上グラフは `ggthemes::theme_tufte` を適用し Tufte スタイルで描画しています。右側のデフォルトテーマ（`ggplot2::theme_gray`）で描画したグラフと比べるとインクレシオが高いことが分かります。
 
 　  
 
