@@ -1,0 +1,672 @@
+---
+title: "Sample Code for Covid19 Data Visualization"
+runningheader: "Tufte Handout with R Markdown" # only for pdf output
+subtitle: "Tufte Handout with R Markdown" # only for html output
+author: "Sampo Suzuki, CC 4.0 BY-NC-SA"
+date: "`r Sys.Date()`"
+output:
+# HTMLフォーマット
+  # tufte::tufte_html: 
+  #   self_contained: true
+  #   toc: true
+    # df_print: paged
+# 配布資料向けPDFフォーマット。ただし、見出しは節（sub section）までしか使えない
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+# 書籍タイプPDFフォーマット。見出しで項（sub sub section）まで使いたい場合はこちら
+  # tufte::tufte_book:
+  #   citation_package: natbib
+  #   latex_engine: xelatex
+always_allow_html: true
+bibliography: skeleton.bib
+link-citations: yes
+# Additional setting for Japanese fonts
+header-includes: |
+  \usepackage{zxjatype}
+  \setCJKmainfont{Noto Serif CJK JP}
+  \setCJKmonofont{Noto Sans Mono CJK JP}
+  \setCJKsansfont{Noto Sans CJK JP}
+mainfont: Noto Serif CJK JP
+mainfontoptions: Scale=MatchUppercase
+sansfont: Noto Sans CJK JP
+monofont: Noto Sans Mono CJK JP
+# mathfont: Noto Serif CJK JP
+CJKmainfont: Noto Serif CJK JP
+CJKoptions: Scale=1
+---
+
+```{r setup, include=FALSE}
+require(tidyverse)
+require(jsonlite)
+require(zoo)
+require(tufte)
+require(ggthemes)
+# require(fontawesome)
+
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(cache.extra = packageVersion('tufte'),
+                      echo = FALSE, message = FALSE, warning = FALSE,
+                      dev = "cairo_pdf", dev.args = list(family = "Noto Serif"))
+options(htmltools.dir.version = FALSE)
+
+# for fontawesome
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L) %>% 
+    return(.)
+}
+
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE) %>% 
+    round(., digits = 1) %>% 
+    return(.)
+}
+
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE) %>% 
+    round(., digits = 1) %>% 
+    return(.)
+}
+
+ma <- function(n, k = 7L) {
+  zoo::rollmeanr(n, k = k, na.pad = TRUE) %>% 
+    round(., digits = 1) %>% 
+    return(.)
+}
+
+# Non-standard evaluation
+# https://www.marketechlabo.com/r-function-using-nse/
+daily_aggregate <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+  
+    df %>% 
+      dplyr::group_by(!!date, !!key) %>% 
+      dplyr::summarise(n = dplyr::n()) %>% 
+      dplyr::ungroup() %>% 
+      tidyr::complete(
+        date = seq.Date(from = min(!!date), to = max(!!date), by = "day"),
+        !!key, fill = list(n = 0L)
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      tidyr::nest() %>%
+      dplyr::mutate(
+        diff = purrr::map(data, ~ lagdiff(.$n)),   # 前日差
+        cum = purrr::map(data, ~ cumsum(.$n)),     # 累計
+        ma7 = purrr::map(data, ~ ma7(.$n)),        # 移動平均（7日）
+        ma28 = purrr::map(data, ~ ma28(.$n))       # 移動平均（28日）
+      ) %>% 
+      tidyr::unnest(cols = c(data, diff, cum, ma7, ma28)) %>% 
+      dplyr::ungroup() %>% 
+      return()
+  }
+}
+
+daily_aggregate2 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::group_by(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      dplyr::summarise(n = dplyr::n()) %>%  # n()は個数をカウントする関数
+      dplyr::ungroup() %>%                  # 最後にungroupするのがポイント
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
+    }
+}
+
+daily_aggregate3 <- function (df = NULL, date = NULL, key = NULL) {
+  if (missing(df) | missing(date) | missing(key)) {
+    return(NULL)
+  } else {
+    date <- dplyr::enquo(date)   # NSE（Non-standard evaluation）処理
+    key <- dplyr::enquo(key)     # NSE（Non-standard evaluation）処理
+    
+    df %>% 
+      dplyr::count(!!key, !!date) %>%      # クロス集計対象を指定するだけ
+      # dplyr::ungroup() %>%                # 最後にungroupは必要？
+      tidyr::complete(                      # 暗黙の欠損を補完する
+        date = seq.Date(from = min(date), to = max(date), by = "day"),
+        !!key, fill = list(n = 0L)          # 個票がない=陽性者ゼロ
+      ) %>% 
+      dplyr::group_by(!!key) %>% 
+      dplyr::mutate(
+        diff = lagdiff(n),
+        cum = cumsum(n),
+        ma7 = ma7(n),
+        ma28 = ma28(n)
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(!!key, !!date, dplyr::everything()) %>% 
+      dplyr::arrange(!!key, !!date) %>% 
+      return()
+    }
+}
+
+subtitle <- paste0("Generated @", lubridate::now())
+caption <- "Data Source: covid19japan.com"
+```
+
+　  
+
+# Introduction
+　本資料は [Covid19 Japan](covid19japan.com) が独自に収集している陽性者のデータ（個票データ）を集計・可視化するためのサンプルコード例です。データ収集処理のためのソースは [ソースリポジトリ（GitHub）](https://github.com/reustle/covid19japan)、収集・処理したデータは [データリポジトリ（GitHub）](https://github.com/reustle/covid19japan-data) にて公開^[ライセンスに関してはリンク先にて確認してください。] されています。
+
+　  
+
+# Import and tidy
+　[データリポジトリ（GitHub）](https://github.com/reustle/covid19japan-data) にて公開されているデータはJSON形式ですので、読み込みには `jsonlite` パッケージが必要です^[`tidyverse` パッケージと共にインストールされます。インストールされていない場合は以下のコードでインストールしてください。]。 
+```{marginfigure, echo=TRUE, eval=FALSE}
+`install.packages("jsonlite")`｀
+```
+
+　  
+
+## 個票データの読み込み
+　陽性と判定された陽性判定者（以降、陽性者と記述）単位で記録されている個票データは [データリポジトリ（GitHub）](https://github.com/reustle/covid19japan-data) から直接読み込めます^[時間帯によりデータが揃っていない場合があります。その場合は、時間帯を変更するか、前日までのデータを利用してください。] が、必ず `raw.githubusercontent.com` のパスを使ってください。`github.com` パスでは読み込めませんので注意してください。
+　コードは `read.csv` や `readr::read_csv` を使う場合と同様で下記のようになります。
+
+　  
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/patient_data/latest.json" %>% 
+  jsonlite::fromJSON()
+```
+:::
+
+
+```{r}
+df %>% 
+  dplyr::select(1:6) %>% 
+  dplyr::slice(n = 1:5) %>% 
+  knitr::kable(caption = "読み込んだデータの一部のみを表示。")
+```
+
+
+読み込んだ個票データを `skimr` パッケージを利用して要約すると下記の通り^[数値と論理型を除き文字型として扱われますので適切な型に変換する必要があります。] です。
+```{r, echo=TRUE}
+df %>%
+  skimr::skim()
+```
+
+　  
+
+## データ型の変換
+　個票の [データフォーマット（GitHub）](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参考に適切な型^[日付は日付型、属性は因子型に変換しておくと処理しやすくなります。] に変換するとともに不要な項目を外しておきます。
+　また、記録には重複や未確定なデータが含まれていますので、これらを外しておく^[`confirmedPatient == TRUE` でフィルタリングします。] ことも必要です。
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+dft <- df %>% 
+  dplyr::select(
+    patientId, date = dateAnnounced, gender, pref = detectedPrefecture,
+    patientStatus, knownCluster, confirmedPatient, ageBracket
+  ) %>% 
+  dplyr::filter(confirmedPatient == TRUE) %>% 
+  dplyr::mutate(
+    date = lubridate::as_date(date),
+    gender = forcats::as_factor(gender),
+    pref = stringr::str_to_lower(pref),
+    patientStatus = forcats::as_factor(patientStatus),
+    cluster = dplyr::if_else(!is.na(knownCluster), TRUE, FALSE),
+    ageBracket = forcats::as_factor(ageBracket)
+  )
+```
+:::
+
+
+
+　変換結果を要約すると下記のように適切に変換されれていることが分かります。
+```{r}
+dft %>%
+  skimr::skim()
+```
+
+　  
+
+## 都道府県データの読み込みと変換
+　個票データの都道府県（`detectedPrefecture`）を利用して都道府県に関するデータ^[著者が作成し [Gist](https://gist.github.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b) で公開しているもの。] をマージすることで、地方などの地域を切り口とした集計が可能になります。
+　個票データを除く他のデータ^[[Google感染予測](https://datastudio.google.com/u/0/reporting/8224d512-a76e-4d38-91c1-935ba119eb8f/page/ncZpB?s=nXbF2P6La2M) など] とのマージも考慮して項目名や型を適宜変換しておきます。
+
+
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676ac34764b/raw/f4ea87f429e1ca28627feff94b67c8b2432aee59/pref_utf8.csv" %>% 
+  readr::read_csv() %>% 
+  dplyr::mutate(
+    # Googleの予測データと結合を考慮してコード体系を合わせておく
+    japan_prefecture_code = paste0("JP-", `コード`)
+  ) %>% 
+  dplyr::select(
+    # Googleの予測データと結合するために名称を変更する
+    japan_prefecture_code,　prefecture_name = pref,
+    # 日本語の変数名は扱いにくいので英語名に変更する
+    pref = `都道府県`, region = `八地方区分`, pops = `推計人口`
+  ) %>% 
+  dplyr::mutate(
+    # 水準ごとに表示させるために因子化する（あらかじめデータをコード順に
+    # 並べておくことが因子化の際のポイントのひとつ）
+    japan_prefecture_code = forcats::fct_inorder(japan_prefecture_code),
+    pref = forcats::fct_inorder(pref),
+    region = forcats::fct_inorder(region),
+    pops = as.integer(pops)
+  )
+```
+:::
+
+
+　48番目に都道府県を除く空港検疫などからの報告数をまとめるための「空港検疫」を用意してあります。人口（`pops`）は千人単位になっています。
+```{r}
+prefs %>% 
+  knitr::kable(caption = "都道府県データ")
+```
+
+　  
+
+## データの結合
+　前出の個票データと都道府県データを結合します。結合の際に因子型変数の水準が欠損値となっているものは適宜 `forcats` パッケージを用いて水準を割り当てておきます。
+
+
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+x <- dft %>% 
+  dplyr::left_join(prefs, by = c("pref" = "prefecture_name")) %>% 
+  dplyr::select(-pref) %>% 
+  dplyr::rename(pref = pref.y) %>% 
+  # 因子型の欠損値を水準化しておく
+  dplyr::mutate(
+    japan_prefecture_code = forcats::fct_explicit_na(japan_prefecture_code,
+                                                     na_level = "JP-48"),
+    pref = forcats::fct_explicit_na(pref, na_level = "空港検疫"),
+    region = forcats::fct_explicit_na(region, na_level = "空港検疫"),
+    gender = forcats::fct_explicit_na(gender, na_level = "非公表"),
+    ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
+    patientStatus = forcats::fct_explicit_na(patientStatus,
+                                             na_level = "Unknown")
+  )
+```
+:::
+
+
+
+　これで集計対象となる個票データの完成です。
+```{r}
+x %>%
+  dplyr::sample_n(size = 10) %>% 
+  dplyr::select(date, pref, region, ageBracket, gender) %>% 
+  knitr::kable(caption = "完成した個票データの一部")
+```
+
+　  
+
+# Data Wrangling
+　完成した個票データを用いて様々な集計を行います。
+
+　  
+
+## 日次集計（単純集計）
+　日付（`date`）を用いた単純な日次集計を行います。この集計結果は [厚生労働省オープンデータ](https://www.mhlw.go.jp/stf/covid-19/open-data.html) の陽性者数データに相当^[厚生労働省の場合、途中から個票からの集計を取りやめ各自治体が公表している集計値を積上げたものを公開しています。] します。  
+集計には `dplyr::group_by` と `dplyr::summarize(n = n())` ^[`dplyr::count` を用いても同様の結果を得ることができます。] を用いることで簡単に計数することができます。ただし、個票データが存在しない日付は計数ができませんので暗黙の欠落（欠損）となり明示的な欠落（欠損）に変換する^[Turns implicit missing values into explicit missing values.] 必要があります。この処理は `tidyr::complete` を用いることで簡単にできます。
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+japan_daily <- x %>% 
+  dplyr::group_by(date) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"),
+    fill = list(n = 0L)
+  )
+```
+:::
+
+
+
+```{marginfigure, echo=TRUE}
+`dplyr::group_by` と `dplyr::summarize` を行った後に続けて処理を行う場合には `dplyr::ungroup` で必ずアングループしてください。
+```
+
+　  
+
+```{r}
+japan_daily %>%
+  dplyr::slice(1:10) %>% 
+  knitr::kable(caption = "最初の10日間の集計結果")
+```
+
+
+
+前日差（`diff`）・累計（`cumsum`）・移動平均（7日（`ma7`）ならびに28日（`ma28`））^[`lagdiff`, `ma7`, `ma28` は以下のような関数として定義してあるます。] も求めます。  
+
+```{marginfigure, echo=TRUE}
+`
+lagdiff <- function(n) {
+  n - dplyr::lag(n, default = 0L)
+}
+`
+```
+
+```{marginfigure, echo=TRUE}
+`
+ma7 <- function(n) {
+  zoo::rollmeanr(n, k = 7L, na.pad = TRUE)
+}
+`
+```
+
+```{marginfigure, echo=TRUE}
+`
+ma28 <- function(n) {
+  zoo::rollmeanr(n, k = 28L, na.pad = TRUE)
+}
+`
+```
+
+
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+japan_daily <- japan_daily %>% 
+  dplyr::mutate(
+    diff = lagdiff(n),   # 前日差
+    cum = cumsum(n),     # 累計
+    ma7 = ma7(n),        # 移動平均（7日）
+    ma28 = ma28(n)       # 移動平均（28日）
+  )
+```
+:::
+
+
+
+```{r}
+japan_daily %>%
+  dplyr::slice(1:10) %>% 
+  knitr::kable(caption = "最初の10日間の集計結果と計算結果")
+```
+
+　  
+
+## クロス集計
+　都道府県ごとの日次集計、年代別の日次集計など複数の変数の水準ごとの集計をクロス集計と呼びます。このクロス集計も単純集計と同様に `dplyr::group_by` と `dplyr::summrize(n =)`^[単純集計と同様に `dplyr::count` を用いても同様の結果を得ることができます。] で計数することができます。  
+
+　  
+
+## 日次・地方区分別集計
+　地方区分（`region`）を `dplyr::group_by` に追加指定するだけでクロス集計ができます。暗黙の欠落（欠損）を明示的な欠落（欠損）に変換する場合も `tidyr::complte` に地方区分（`region`）を追加するだけ済みます。
+
+::: {.fullwidth}
+```{r, echo=TRUE}
+region_daily <- x %>% 
+  dplyr::group_by(date, region) %>% 
+  dplyr::summarise(n = dplyr::n()) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::complete(
+    date = seq.Date(from = min(date), to = max(date), by = "day"), region,
+    fill = list(n = 0L)
+  ) %>% 
+  dplyr::group_by(region) %>% 
+  dplyr::mutate(
+    diff = lagdiff(n),
+    cum = cumsum(n),
+    ma7 = ma7(n),
+    ma28 = ma28(n)
+  ) %>% 
+  dplyr::ungroup()
+```
+:::
+
+
+
+```{r}
+region_daily %>%
+  dplyr::slice(1:10) %>% 
+  knitr::kable(caption = "最初の10レコード")
+```
+
+　  
+
+## 日次・都道府県別集計
+　同様に都道府県別の日次集計を行います。
+```{r}
+pref_daily <- x %>% 
+  daily_aggregate(date, pref)
+
+pref_daily %>% 
+  dplyr::slice(1:10) %>% 
+  knitr::kable(caption = "最初の10レコード")
+```
+
+
+
+# Visualize
+　集計結果を可視化してみます。
+
+　  
+
+## 日次集計の可視化
+　日次集計データ（`japan_daily`）の単日陽性者数（`n`）・累計陽性者数（`cum`）・単日移動平均（7日）（`ma7`）を描きます。単日陽性者数は棒グラフ、累計陽性者数と単日移動平均は折線グラフで描きますが、累計の最大値は単日や移動平均と2桁異なりますので二軸のグラフとして描く必要があります。
+　
+```{r, echo=TRUE, fig.cap="【全国】陽性者数の推移（単日／累計／移動平均（7日））"}
+title <- "Tufte's Style"
+xlab <- ""
+ylab <- ""
+sec_scale <- 50       # 縦二軸用のスケーリング値
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+axis1 <- "陽性者数（灰）・同移動平均（濃灰）"
+axis2 <- "累計陽性者数（濃緑）"
+
+japan_daily %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+                      fill = "dark gray", alpha = 0.75) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "solid",
+                       colour = "gray10", size = 0.35) + 
+    # 第二軸を利用するグラフを描画する際はスケーリング調整する
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+                       colour = "dark green", size = 0.75) +
+    # 横軸表示の指定
+    ggplot2::scale_x_date(date_breaks = "1 month", date_labels = "%y/%m") + 
+    # 二軸表示のための軸属性の指定
+    ggplot2::scale_y_continuous(
+      # 第一軸のラベル（スケールは自動調整）
+      name = axis1,
+      # 第二軸の指定（第一軸にスケーリング値をかけたスケール）
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale, 
+                                   name = axis2)) +
+    ggthemes::theme_tufte() + 
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+
+```{r, fig.margin = TRUE, fig.cap="Draw with default theme."}
+title <- "ggplot2 default style"
+xlab <- ""
+ylab <- ""
+sec_scale <- 50       # 縦二軸用のスケーリング値
+dbreaks <- "2 month"
+dlabels <- "%y-%m"
+axis1 <- "陽性者数（灰）・同移動平均（濃灰）"
+axis2 <- "累計陽性者数（濃緑）"
+
+japan_daily %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+                      fill = "dark gray", alpha = 0.75) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "solid",
+                       colour = "gray10", size = 0.35) + 
+    # 第二軸を利用するグラフを描画する際はスケーリング調整する
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+                       colour = "dark green", size = 0.75) +
+    # 横軸表示の指定
+    ggplot2::scale_x_date(date_breaks = "1 month", date_labels = "%y/%m") + 
+    # 二軸表示のための軸属性の指定
+    ggplot2::scale_y_continuous(
+      # 第一軸のラベル（スケールは自動調整）
+      name = axis1,
+      # 第二軸の指定（第一軸にスケーリング値をかけたスケール）
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale, 
+                                   name = axis2)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+
+```
+
+　  
+
+> 上グラフは `ggthemes::theme_tufte` を適用し Tufte スタイルで描画しています。右側のデフォルトテーマ（`ggplot2::theme_gray`）で描画したグラフと比べるとインクレシオが低いことが分かります。
+
+　  
+
+## クロス集計の可視化（地方別）
+　`ggthemes::theme_tufte` は凡例を非表示にできませんので `ggplot2::theme` を利用してTufteスタイルに近い設定にします。
+```{r, echo=TRUE, fig.fullwidth=TRUE, fig.height=10, fig.width=10}
+title <- "地方別陽性者数の推移"
+xlab <- ""
+ylab <- ""
+sec_scale <- 50       # 縦二軸用のスケーリング値
+ncol <- 3
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+axis1 <- "陽性者数（棒）・同移動平均（細線）"
+axis2 <- "累計陽性者数（太線）"
+
+region_daily %>% 
+  dplyr::mutate(key = region) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme_gray() + 
+    ggplot2::theme(panel.grid = ggplot2::element_blank(),
+                   panel.background = ggplot2::element_blank(),
+                   strip.background = ggplot2::element_blank(),
+                   legend.position = "none") + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = axis1,
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale, name = axis2)) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+　  
+　  
+　  
+
+## クロス集計の可視化（都道府県別）
+```{r, echo=TRUE, fig.fullwidth=TRUE, fig.height=15, fig.width=10}
+title <- "都道府県別陽性者数の推移"
+xlab <- ""
+ylab <- ""
+sec_scale <- 50       # 縦二軸用のスケーリング値
+ncol <- 4
+dbreaks <- "3 month"
+dlabels <- "%y-%m"
+axis1 <- "陽性者数（棒）・同移動平均（細線）"
+axis2 <- "累計陽性者数（太線）"
+
+pref_daily %>% 
+  dplyr::mutate(key = pref) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
+    ggplot2::theme_gray() + 
+    ggplot2::theme(panel.grid = ggplot2::element_blank(),
+                   panel.background = ggplot2::element_blank(),
+                   strip.background = ggplot2::element_blank(),
+                   legend.position = "none") + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
+    ggplot2::scale_y_continuous(
+      name = axis1,
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale, name = axis2)) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+
+## 緊急事態宣言地域（前倒解除府県を含む）
+```{r, fig.fullwidth=TRUE, fig.height=8, fig.width=10}
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>% 
+  dplyr::filter(date >= lubridate::as_date("2021-01-08"))
+title <- "【緊急事態宣言対象】陽性者数(単日)"
+xlab <- ""
+ylab <- "陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
+                      alpha = 0.25, width = 1.0) + 
+    ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
+                       linetype = "solid", size = 0.25) + 
+    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+    ggplot2::geom_hline(ggplot2::aes(yintercept = ma7, colour = key),
+                        data = subset(subset, date == max(date)),
+                        size = 0.5, linetype = "dotted") +
+    ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggplot2::theme_gray() + 
+    ggplot2::theme(panel.grid = ggplot2::element_blank(),
+                   panel.background = ggplot2::element_blank(),
+                   strip.background = ggplot2::element_blank(),
+                   legend.position = "none") + 
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::scale_y_continuous(
+      name = "陽性者数（棒）・移動平均（細線）",
+      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+                                    name = "陽性者数累計（太線）")) +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
+
