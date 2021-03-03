@@ -6,10 +6,10 @@ author: "Sampo Suzuki, CC 4.0 BY-NC-SA"
 date: "`r Sys.Date()`"
 output:
 # HTMLフォーマット
-  # tufte::tufte_html:
-  #   self_contained: true
-  #   toc: false
-  #   df_print: paged
+  tufte::tufte_html:
+    self_contained: true
+    toc: false
+    df_print: paged
 # 配布資料向けPDFフォーマット。ただし、見出しは節（sub section）までしか使えない
   tufte::tufte_handout:
     citation_package: natbib
@@ -450,7 +450,7 @@ japan_daily %>%
 　  
 
 ## クロス集計
-　都道府県ごとの日次集計、年代別の日次集計など複数の変数の水準ごとの集計をクロス集計と呼びます。このクロス集計も単純集計と同様に `dplyr::group_by` と `dplyr::summrize(n =)`^[単純集計と同様に `dplyr::count` を用いても同様の結果を得ることができます。] で計数することができます。  
+　都道府県ごとの日次集計、年代別の日次集計など複数の変数の水準ごとの集計をクロス集計と呼びます。このクロス集計も単純集計と同様に `dplyr::group_by` と `dplyr::summrize(n = n())`^[単純集計と同様に `dplyr::count` を用いても同様の結果を得ることができます。] で計数することができます。  
 
 　  
 
