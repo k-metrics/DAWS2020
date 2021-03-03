@@ -671,6 +671,36 @@ pref_daily %>%
 　  
 　  
 　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
+　  
 
 ## 緊急事態宣言地域（前倒解除府県を含む）
 ```{r, fig.fullwidth=TRUE, fig.height=8, fig.width=10}
