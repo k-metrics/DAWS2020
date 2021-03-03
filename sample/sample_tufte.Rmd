@@ -6,10 +6,10 @@ author: "Sampo Suzuki, CC 4.0 BY-NC-SA"
 date: "`r Sys.Date()`"
 output:
 # HTMLフォーマット
-  # tufte::tufte_html: 
+  # tufte::tufte_html:
   #   self_contained: true
-  #   toc: true
-    # df_print: paged
+  #   toc: false
+  #   df_print: paged
 # 配布資料向けPDFフォーマット。ただし、見出しは節（sub section）までしか使えない
   tufte::tufte_handout:
     citation_package: natbib
@@ -44,11 +44,44 @@ require(tufte)
 require(ggthemes)
 # require(fontawesome)
 
+# Output format
+output <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+
 # invalidate cache when the tufte version changes
 knitr::opts_chunk$set(cache.extra = packageVersion('tufte'),
-                      echo = FALSE, message = FALSE, warning = FALSE,
-                      dev = "cairo_pdf", dev.args = list(family = "Noto Serif"))
+                      echo = FALSE, message = FALSE, warning = FALSE)
 options(htmltools.dir.version = FALSE)
+
+# PDFにおいてggplot2の日本語を有効にする
+if (output == "latex") {
+  knitr::opts_chunk$set(dev = "cairo_pdf",
+                        dev.args = list(family = "Noto Serif"))
+}
+
+# Switch table rendering by output type
+df_print <- function(df = NULL, type = NULL, n = 3L, caption = NULL, ...) {
+  if (is.null(type)) {
+    output_type <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+  } else {
+    output_type <- type
+  }
+
+  # print(output_type)
+
+  if (!is.null(df)) {
+    if (output_type == "html") {
+      rmarkdown::paged_table(df)
+    } else if (output_type == "latex" | output_type == "docx") {
+      df %>% 
+        psych::headTail(top = n, bottom = n) %>% 
+        knitr::kable(caption = caption, ...)
+    } else {
+      df
+    }
+  }　else {
+    return(NULL)
+  }
+}
 
 # for fontawesome
 htmltools::tagList(rmarkdown::html_dependency_font_awesome())
@@ -178,7 +211,7 @@ caption <- "Data Source: covid19japan.com"
 # Import and tidy
 　[データリポジトリ（GitHub）](https://github.com/reustle/covid19japan-data) にて公開されているデータはJSON形式ですので、読み込みには `jsonlite` パッケージが必要です^[`tidyverse` パッケージと共にインストールされます。インストールされていない場合は以下のコードでインストールしてください。]。 
 ```{marginfigure, echo=TRUE, eval=FALSE}
-`install.packages("jsonlite")`｀
+`install.packages("jsonlite")`
 ```
 
 　  
@@ -199,9 +232,10 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
 
 ```{r}
 df %>% 
-  dplyr::select(1:6) %>% 
-  dplyr::slice(n = 1:5) %>% 
-  knitr::kable(caption = "読み込んだデータの一部のみを表示。")
+  dplyr::select(1:6) %>%
+  # dplyr::slice(n = 1:5) %>% 
+  # knitr::kable(caption = "読み込んだデータの一部のみを表示。")
+  df_print(caption = "読み込んだデータの一部")
 ```
 
 
@@ -281,7 +315,8 @@ prefs <- "https://gist.githubusercontent.com/k-metrics/9f3fc18e042850ff24ad9676a
 　48番目に都道府県を除く空港検疫などからの報告数をまとめるための「空港検疫」を用意してあります。人口（`pops`）は千人単位になっています。
 ```{r}
 prefs %>% 
-  knitr::kable(caption = "都道府県データ")
+  # knitr::kable(caption = "都道府県データ")
+  df_print(caption = "都道府県データの一部")
 ```
 
 　  
@@ -316,9 +351,10 @@ x <- dft %>%
 　これで集計対象となる個票データの完成です。
 ```{r}
 x %>%
-  dplyr::sample_n(size = 10) %>% 
+  # dplyr::sample_n(size = 10) %>% 
   dplyr::select(date, pref, region, ageBracket, gender) %>% 
-  knitr::kable(caption = "完成した個票データの一部")
+  # knitr::kable(caption = "完成した個票データの一部")
+  df_print(caption = "完成した個票データの一部")
 ```
 
 　  
@@ -355,8 +391,9 @@ japan_daily <- x %>%
 
 ```{r}
 japan_daily %>%
-  dplyr::slice(1:10) %>% 
-  knitr::kable(caption = "最初の10日間の集計結果")
+  # dplyr::slice(1:10) %>% 
+  # knitr::kable(caption = "最初の10日間の集計結果")
+  df_print(n = 5L, caption = "集計結果の一部")
 ```
 
 
@@ -405,8 +442,9 @@ japan_daily <- japan_daily %>%
 
 ```{r}
 japan_daily %>%
-  dplyr::slice(1:10) %>% 
-  knitr::kable(caption = "最初の10日間の集計結果と計算結果")
+  # dplyr::slice(1:10) %>% 
+  # knitr::kable(caption = "最初の10日間の集計結果と計算結果")
+  df_print(n = 5L, caption = "計算結果の一部")
 ```
 
 　  
@@ -444,8 +482,9 @@ region_daily <- x %>%
 
 ```{r}
 region_daily %>%
-  dplyr::slice(1:10) %>% 
-  knitr::kable(caption = "最初の10レコード")
+  # dplyr::slice(1:10) %>% 
+  # knitr::kable(caption = "最初の10レコード")
+  df_print(n = 5L, caption = "集計結果の一部")
 ```
 
 　  
@@ -457,8 +496,9 @@ pref_daily <- x %>%
   daily_aggregate(date, pref)
 
 pref_daily %>% 
-  dplyr::slice(1:10) %>% 
-  knitr::kable(caption = "最初の10レコード")
+  # dplyr::slice(1:10) %>% 
+  # knitr::kable(caption = "最初の10レコード")
+  df_print(n = 5L, caption = "集計結果の一部")
 ```
 
 
@@ -470,14 +510,14 @@ pref_daily %>%
 
 ## 日次集計の可視化
 　日次集計データ（`japan_daily`）の単日陽性者数（`n`）・累計陽性者数（`cum`）・単日移動平均（7日）（`ma7`）を描きます。単日陽性者数は棒グラフ、累計陽性者数と単日移動平均は折線グラフで描きますが、累計の最大値は単日や移動平均と2桁異なりますので二軸のグラフとして描く必要があります。
-　
+
 ```{r, echo=TRUE, fig.cap="【全国】陽性者数の推移（単日／累計／移動平均（7日））"}
 title <- "Tufte's Style"
 xlab <- ""
 ylab <- ""
 sec_scale <- 50       # 縦二軸用のスケーリング値
-dbreaks <- "2 month"
-dlabels <- "%y-%m"
+dbreaks <- "2 month"  # 横軸目盛りのラベル間隔
+dlabels <- "%y-%m"    # 横軸目盛りラベルのフォーマット
 axis1 <- "陽性者数（灰）・同移動平均（濃灰）"
 axis2 <- "累計陽性者数（濃緑）"
 
@@ -506,13 +546,14 @@ japan_daily %>%
 ```
 
 
-```{r, fig.margin = TRUE, fig.cap="Draw with default theme."}
+
+```{r, fig.margin=TRUE, fig.cap="Draw with default theme."}
 title <- "ggplot2 default style"
 xlab <- ""
 ylab <- ""
 sec_scale <- 50       # 縦二軸用のスケーリング値
-dbreaks <- "2 month"
-dlabels <- "%y-%m"
+dbreaks <- "2 month"  # 横軸目盛りのラベル間隔
+dlabels <- "%y-%m"    # 横軸目盛りラベルのフォーマット
 axis1 <- "陽性者数（灰）・同移動平均（濃灰）"
 axis2 <- "累計陽性者数（濃緑）"
 
@@ -542,7 +583,7 @@ japan_daily %>%
 
 　  
 
-> 上グラフは `ggthemes::theme_tufte` を適用し Tufte スタイルで描画しています。右側のデフォルトテーマ（`ggplot2::theme_gray`）で描画したグラフと比べるとインクレシオが高いことが分かります。
+> 上グラフは `ggthemes::theme_tufte` を適用し Tufte スタイルで描画しています。右側のデフォルトテーマ（`ggplot2::theme_gray`）で描画したグラフと比べるとデータ・インクレシオが高いことが分かります。
 
 　  
 
