@@ -204,41 +204,16 @@ library(jsonlite)
 
 　
 
-<!-- ### Tips -->
+### サンプルコード
 
-<!-- 知っておくと便利な関数。 -->
+以下でサンプルコードと簡単な解説を公開しました（2021/3/3）。
 
-<!-- 　   -->
+  - [HTML版（Tufte Handout
+    Style）](https://k-metrics.github.io/DAWS2020/sample_tufte.html)
+  - [PDF版（Tufte Handout
+    Style）](https://k-metrics.github.io/DAWS2020/sample_tufte.pdf)
 
-<!-- #### m日移動平均を求める -->
-
-<!-- ```{r, eval=FALSE} -->
-
-<!-- zoo::rollmeanr(n, k = mL, na.pad = TRUE) -->
-
-<!-- ``` -->
-
-<!-- 　   -->
-
-<!-- #### 前日差を求める -->
-
-<!-- ```{r, eval=FALSE} -->
-
-<!-- n - dplyr::lag(n, default = 0L) -->
-
-<!-- ``` -->
-
-<!-- 　   -->
-
-<!-- #### 日付データを補完する -->
-
-<!-- ```{r, eval=FALSE} -->
-
-<!-- tidyr::complete(date = seq.Date(from = min(date), to = max(date), by = "day")) -->
-
-<!-- ``` -->
-
-<!-- 　   -->
+　
 
 ### その他データ
 
@@ -276,4 +251,4 @@ Enjoy\!
 
 [CC 4.0
 BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ja),
-Sampo Suzuki (Update: 2021-02-23 16:59:52)
+Sampo Suzuki (Update: 2021-03-03 19:08:09)
