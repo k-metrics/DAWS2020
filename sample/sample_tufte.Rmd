@@ -1,15 +1,15 @@
 ---
 title: "Sample Code for Covid19 Data Visualization"
-runningheader: "Tufte Handout with R Markdown" # only for pdf output
+runningheader: "Sample Code for Covid19 Data Visualization" # only for pdf output (titleと同一にする)
 subtitle: "Tufte Handout with R Markdown" # only for html output
 author: "Sampo Suzuki, CC 4.0 BY-NC-SA"
 date: "`r Sys.Date()`"
 output:
 # HTMLフォーマット
-  tufte::tufte_html:
-    self_contained: true
-    toc: false
-    df_print: paged
+  # tufte::tufte_html:
+  #   self_contained: true
+  #   toc: false
+  #   df_print: paged
 # 配布資料向けPDFフォーマット。ただし、見出しは節（sub section）までしか使えない
   tufte::tufte_handout:
     citation_package: natbib
@@ -21,18 +21,34 @@ output:
 always_allow_html: true
 bibliography: skeleton.bib
 link-citations: yes
-# Additional setting for Japanese fonts
+## Additional setting for Japanese PDF fonts, Ubuntu
+# header-includes: |
+#   \usepackage{xeCJK}
+#   \usepackage{zxjatype}
+#   \setCJKmainfont{Noto Serif CJK JP}
+#   \setCJKmonofont{Noto Sans Mono CJK JP}
+#   \setCJKsansfont{Noto Sans CJK JP}
+# mainfont: Noto Serif CJK JP
+# mainfontoptions: Scale=MatchUppercase
+# sansfont: Noto Sans CJK JP
+# monofont: Noto Sans Mono CJK JP
+# # mathfont: Noto Serif CJK JP
+# CJKmainfont: Noto Serif CJK JP
+# CJKoptions: Scale=1
+## Additional setting for Japanese PDF fonts, Winodws10 (Use font filename)
 header-includes: |
+  \usepackage{xeCJK}
   \usepackage{zxjatype}
-  \setCJKmainfont{Noto Serif CJK JP}
-  \setCJKmonofont{Noto Sans Mono CJK JP}
-  \setCJKsansfont{Noto Sans CJK JP}
-mainfont: Noto Serif CJK JP
+  \setCJKmainfont{NotoSerifCJKjp-Regular.otf}
+  \setCJKmonofont{NotoSansMonoCJKjp-Regular.otf}
+  \setCJKsansfont{NotoSansCJKjp-Regular.otf}
+  \setCJKmathfont{NotoSerifCJKjp-Regular.otf}
+mainfont: NotoSerifCJKjp-Regular.otf
 mainfontoptions: Scale=MatchUppercase
-sansfont: Noto Sans CJK JP
-monofont: Noto Sans Mono CJK JP
+sansfont: NotoSansCJKjp-Regular.otf
+monofont: NotoSansMonoCJKjp-Regular.otf
 # mathfont: Noto Serif CJK JP
-CJKmainfont: Noto Serif CJK JP
+CJKmainfont: NotoSerifCJKjp-Regular.otf
 CJKoptions: Scale=1
 ---
 
