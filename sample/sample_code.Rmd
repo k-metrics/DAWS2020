@@ -1113,7 +1113,8 @@ subset %>%
 ```{r, echo=FALSE, fig.height=10}
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
-                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県"))
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
+                            "北海道", "沖縄県"))
 title <- "【緊急事態宣言対象】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
@@ -1148,7 +1149,8 @@ subset %>%
 ```{r, echo=FALSE, fig.height=10}
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
-                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県")) %>% 
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
+                            "北海道", "沖縄県")) %>% 
   dplyr::filter(date >= lubridate::as_date("2021-01-08"))
 title <- "【緊急事態宣言対象】陽性者数(単日)"
 xlab <- ""
