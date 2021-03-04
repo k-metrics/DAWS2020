@@ -22,34 +22,35 @@ always_allow_html: true
 bibliography: skeleton.bib
 link-citations: yes
 ## Additional setting for Japanese PDF fonts, Ubuntu
-# header-includes: |
-#   \usepackage{xeCJK}
-#   \usepackage{zxjatype}
-#   \setCJKmainfont{Noto Serif CJK JP}
-#   \setCJKmonofont{Noto Sans Mono CJK JP}
-#   \setCJKsansfont{Noto Sans CJK JP}
-# mainfont: Noto Serif CJK JP
-# mainfontoptions: Scale=MatchUppercase
-# sansfont: Noto Sans CJK JP
-# monofont: Noto Sans Mono CJK JP
-# # mathfont: Noto Serif CJK JP
-# CJKmainfont: Noto Serif CJK JP
-# CJKoptions: Scale=1
-## Additional setting for Japanese PDF fonts, Winodws10 (Use font filename)
 header-includes: |
   \usepackage{xeCJK}
   \usepackage{zxjatype}
-  \setCJKmainfont{NotoSerifCJKjp-Regular.otf}
-  \setCJKmonofont{NotoSansMonoCJKjp-Regular.otf}
-  \setCJKsansfont{NotoSansCJKjp-Regular.otf}
+  \setCJKmainfont{Noto Serif CJK JP}
+  \setCJKmonofont{Noto Sans Mono CJK JP}
+  \setCJKsansfont{Noto Sans CJK JP}
   \setCJKmathfont{NotoSerifCJKjp-Regular.otf}
-mainfont: NotoSerifCJKjp-Regular.otf
+mainfont: Noto Serif CJK JP
 mainfontoptions: Scale=MatchUppercase
-sansfont: NotoSansCJKjp-Regular.otf
-monofont: NotoSansMonoCJKjp-Regular.otf
+sansfont: Noto Sans CJK JP
+monofont: Noto Sans Mono CJK JP
 # mathfont: Noto Serif CJK JP
-CJKmainfont: NotoSerifCJKjp-Regular.otf
+CJKmainfont: Noto Serif CJK JP
 CJKoptions: Scale=1
+## Additional setting for Japanese PDF fonts, Winodws10 (Use font filename)
+# header-includes: |
+#   \usepackage{xeCJK}
+#   \usepackage{zxjatype}
+#   \setCJKmainfont{NotoSerifCJKjp-Regular.otf}
+#   \setCJKmonofont{NotoSansMonoCJKjp-Regular.otf}
+#   \setCJKsansfont{NotoSansCJKjp-Regular.otf}
+#   \setCJKmathfont{NotoSerifCJKjp-Regular.otf}
+# mainfont: NotoSerifCJKjp-Regular.otf
+# mainfontoptions: Scale=MatchUppercase
+# sansfont: NotoSansCJKjp-Regular.otf
+# monofont: NotoSansMonoCJKjp-Regular.otf
+# # mathfont: Noto Serif CJK JP
+# CJKmainfont: NotoSerifCJKjp-Regular.otf
+# CJKoptions: Scale=1
 ---
 
 ```{r setup, include=FALSE}
