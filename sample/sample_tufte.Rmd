@@ -5,16 +5,16 @@ subtitle: "Tufte Handout with R Markdown" # only for html output
 author: "Sampo Suzuki, CC 4.0 BY-NC-SA"
 date: "`r Sys.Date()`"
 output:
-# HTMLフォーマット
+# HTML format
   # tufte::tufte_html:
   #   self_contained: true
   #   toc: false
   #   df_print: paged
-# 配布資料向けPDFフォーマット。ただし、見出しは節（sub section）までしか使えない
+# PDF format, Tafte handout 見出しは節（sub section）までしか使えない
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: xelatex
-# 書籍タイプPDFフォーマット。見出しで項（sub sub section）まで使いたい場合はこちら
+# PDF format, Tafte book 見出しで項（sub sub section）まで使いたい場合はこちら
   # tufte::tufte_book:
   #   citation_package: natbib
   #   latex_engine: xelatex
@@ -23,12 +23,26 @@ bibliography: skeleton.bib
 link-citations: yes
 ## Additional setting for Japanese PDF fonts, Ubuntu
 header-includes: |
+  \usepackage{booktabs}
+  \usepackage{longtable}
+  \usepackage{array}
+  \usepackage{multirow}
+  \usepackage{wrapfig}
+  \usepackage{float}
+  \usepackage{colortbl}
+  \usepackage{pdflscape}
+  \usepackage{tabu}
+  \usepackage{threeparttable}
+  \usepackage{threeparttablex}
+  \usepackage[normalem]{ulem}
+  \usepackage{makecell}
+  \usepackage{xcolor}
   \usepackage{xeCJK}
   \usepackage{zxjatype}
   \setCJKmainfont{Noto Serif CJK JP}
   \setCJKmonofont{Noto Sans Mono CJK JP}
   \setCJKsansfont{Noto Sans CJK JP}
-  \setCJKmathfont{NotoSerifCJKjp-Regular.otf}
+  \setCJKmathfont{Noto Serif CJK JP}
 mainfont: Noto Serif CJK JP
 mainfontoptions: Scale=MatchUppercase
 sansfont: Noto Sans CJK JP
@@ -38,6 +52,20 @@ CJKmainfont: Noto Serif CJK JP
 CJKoptions: Scale=1
 ## Additional setting for Japanese PDF fonts, Winodws10 (Use font filename)
 # header-includes: |
+#   \usepackage{booktabs}
+#   \usepackage{longtable}
+#   \usepackage{array}
+#   \usepackage{multirow}
+#   \usepackage{wrapfig}
+#   \usepackage{float}
+#   \usepackage{colortbl}
+#   \usepackage{pdflscape}
+#   \usepackage{tabu}
+#   \usepackage{threeparttable}
+#   \usepackage{threeparttablex}
+#   \usepackage[normalem]{ulem}
+#   \usepackage{makecell}
+#   \usepackage{xcolor}
 #   \usepackage{xeCJK}
 #   \usepackage{zxjatype}
 #   \setCJKmainfont{NotoSerifCJKjp-Regular.otf}
@@ -58,24 +86,29 @@ require(tidyverse)
 require(jsonlite)
 require(zoo)
 require(tufte)
-require(ggthemes)
-# require(fontawesome)
-
-# Output format
-output <- knitr::opts_knit$get("rmarkdown.pandoc.to")
 
 # invalidate cache when the tufte version changes
 knitr::opts_chunk$set(cache.extra = packageVersion('tufte'),
                       echo = FALSE, message = FALSE, warning = FALSE)
 options(htmltools.dir.version = FALSE)
 
-# PDFにおいてggplot2の日本語を有効にする
-if (output == "latex") {
-  knitr::opts_chunk$set(dev = "cairo_pdf",
-                        dev.args = list(family = "Noto Serif"))
+# PDF出力でggplot2の日本語フォントを有効にする
+output <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+if (!is.null(output)) {
+  if (output == "latex") {
+    knitr::opts_chunk$set(dev = "cairo_pdf",
+                          dev.args = list(family = "Noto Serif"))
+  }
 }
 
-# Switch table rendering by output type
+## Switch table rendering by output type
+# HTML format use rmarkdown::paged_tabke＃
+# PDF/DOCX format use kableExtra package
+#  https://haozhu233.github.io/kableExtra/
+#  https://haozhu233.github.io/kableExtra/awesome_table_in_pdf.pdf
+# WARNING:
+# Should NOT exec df_print befor skimr::skim (has bug) 
+# Do NOT require() or library() kableExtra package with using skimr package
 df_print <- function(df = NULL, type = NULL, n = 3L, caption = NULL, ...) {
   if (is.null(type)) {
     output_type <- knitr::opts_knit$get("rmarkdown.pandoc.to")
@@ -91,7 +124,10 @@ df_print <- function(df = NULL, type = NULL, n = 3L, caption = NULL, ...) {
     } else if (output_type == "latex" | output_type == "docx") {
       df %>% 
         psych::headTail(top = n, bottom = n) %>% 
-        knitr::kable(caption = caption, ...)
+        # knitr::kable(caption = caption, ...)
+        kableExtra::kbl(caption  = caption) %>% 
+        kableExtra::kable_paper(full_width = FALSE, position = "left",
+                                latex_options = "scale_down")
     } else {
       df
     }
@@ -99,6 +135,7 @@ df_print <- function(df = NULL, type = NULL, n = 3L, caption = NULL, ...) {
     return(NULL)
   }
 }
+
 
 # for fontawesome
 htmltools::tagList(rmarkdown::html_dependency_font_awesome())
@@ -248,15 +285,16 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
 
 
 ```{r}
-df %>% 
-  dplyr::select(1:6) %>%
-  # dplyr::slice(n = 1:5) %>% 
-  # knitr::kable(caption = "読み込んだデータの一部のみを表示。")
-  df_print(caption = "読み込んだデータの一部")
+# df %>% 
+#   dplyr::select(1:6) %>%
+#   # dplyr::slice(n = 1:5) %>% 
+#   # knitr::kable(caption = "読み込んだデータの一部のみを表示。")
+#   df_print(caption = "読み込んだデータの一部")
 ```
 
+\clearpage
 
-読み込んだ個票データを `skimr` パッケージを利用して要約すると下記の通り^[数値と論理型を除き文字型として扱われますので適切な型に変換する必要があります。] です。
+読み込んだ個票データを `skimr` パッケージを利用して要約すると下記のようになります^[数値と論理型を除き文字型として扱われますので適切な型に変換する必要があります。]。
 ```{r, echo=TRUE}
 df %>%
   skimr::skim()
@@ -264,8 +302,18 @@ df %>%
 
 　  
 
+```{r, eval=(output != "latex")}
+df %>% 
+  dplyr::select(1:5) %>% 
+  psych::headTail() %>% 
+  kableExtra::kbl(caption = "Subset of JSON data") %>% 
+  kableExtra::kable_paper(full_width = FALSE, position = "left")
+```
+
+　  
+
 ## データ型の変換
-　個票の [データフォーマット（GitHub）](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参考に適切な型^[日付は日付型、属性は因子型に変換しておくと処理しやすくなります。] に変換するとともに不要な項目を外しておきます。
+　個票の [データフォーマット（GitHub）](https://github.com/reustle/covid19japan-data/blob/master/README_data_format.md) を参考に適切な型^[日付は日付型、属性は因子型に変換しておくと処理しやすくなります。] に変換するとともに不要な項目を外しておきます。  
 　また、記録には重複や未確定なデータが含まれていますので、これらを外しておく^[`confirmedPatient == TRUE` でフィルタリングします。] ことも必要です。
 
 ::: {.fullwidth}
