@@ -1186,6 +1186,14 @@ subset %>%
 
 ### 週平均
 ```{r, echo=FALSE, fig.height=10}
+lagdiff_na <- function(n) {
+  if (missing(n)) {
+    return(NULL)
+  } else {
+    return(n - dplyr::lag(n))
+  }
+}
+
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
                             "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
@@ -1193,7 +1201,13 @@ subset <- pref_daily %>% dplyr::mutate(key = pref) %>%
   dplyr::filter(date >= lubridate::as_date("2021-01-03")) %>% 
   dplyr::mutate(week = lubridate::epiweek(date)) %>% 
   dplyr::group_by(key, week) %>% 
-  dplyr::summarise(n = mean(n))
+  dplyr::summarise(n = mean(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(key) %>% 
+  dplyr::mutate(diff = lagdiff_na(n),
+                lag = dplyr::lag(n),
+                gain = round((diff / lag) * 100, 1),
+                rate = round((n / lag) * 100, 1))
 title <- "【緊急事態宣言対象】陽性者数(週平均)"
 xlab <- ""
 ylab <- "陽性者数"
@@ -1204,21 +1218,20 @@ dlabels <- "%m/%d"
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = week)) +
+    ggplot2::geom_vline(xintercept = lubridate::epiweek(
+      lubridate::as_date("2021-01-31")), size = 0.25, linetype = "dotted") + 
+    # ggplot2::geom_vline(xintercept = lubridate::epiweek(
+    #   lubridate::as_date("2021-03-07")), size = 0.25, linetype = "dotted") + 
     ggplot2::geom_line(ggplot2::aes(y = n, colour = key)) + 
-  #   ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
-  #                     alpha = 0.25, width = 1.0) + 
-  #   ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
-  #                      linetype = "solid", size = 0.25) + 
-  #   ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
     ggplot2::geom_hline(ggplot2::aes(yintercept = n, colour = key),
                         data = subset(subset, week == max(week)),
                         size = 0.5, linetype = "dotted") +
-    # ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
+    ggrepel::geom_label_repel(ggplot2::aes(y = n, label = rate),
+                                           colour = "gray50", size = 2.5) + 
     ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10)) +
     # ggplot2::scale_y_continuous(limits = c(0, 600)) +
     ggplot2::theme(legend.position = 'none') +
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
-  #   # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
 ```
