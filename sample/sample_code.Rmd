@@ -1152,7 +1152,7 @@ subset <- pref_daily %>% dplyr::mutate(key = pref) %>%
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
                             "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
                             "北海道", "沖縄県")) %>% 
-  dplyr::filter(date >= lubridate::as_date("2021-01-08"))
+  dplyr::filter(date >= lubridate::as_date("2021-01-03"))
 title <- "【緊急事態宣言対象】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
@@ -1185,7 +1185,8 @@ subset %>%
 
 
 ### 週平均
-```{r, echo=FALSE, fig.height=10}
+
+```{r, fig.height=30, fig.width=10, echo=FALSE}
 lagdiff_na <- function(n) {
   if (missing(n)) {
     return(NULL)
@@ -1195,9 +1196,9 @@ lagdiff_na <- function(n) {
 }
 
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
-  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
-                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
-                            "北海道", "沖縄県")) %>% 
+  # dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+  #                           "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
+  #                           "北海道", "沖縄県")) %>% 
   dplyr::filter(date >= lubridate::as_date("2021-01-03")) %>% 
   dplyr::mutate(week = lubridate::epiweek(date)) %>% 
   dplyr::group_by(key, week) %>% 
@@ -1226,8 +1227,8 @@ subset %>%
     ggplot2::geom_hline(ggplot2::aes(yintercept = n, colour = key),
                         data = subset(subset, week == max(week)),
                         size = 0.5, linetype = "dotted") +
-    ggrepel::geom_label_repel(ggplot2::aes(y = n, label = rate),
-                                           colour = "gray50", size = 2.5) + 
+    ggrepel::geom_text_repel(ggplot2::aes(y = n, label = rate),
+                                           colour = "gray25", size = 2.5) + 
     ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10)) +
     # ggplot2::scale_y_continuous(limits = c(0, 600)) +
     ggplot2::theme(legend.position = 'none') +
