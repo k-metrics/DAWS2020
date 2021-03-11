@@ -1209,7 +1209,7 @@ subset <- pref_daily %>% dplyr::mutate(key = pref) %>%
                 lag = dplyr::lag(n),
                 gain = round((diff / lag) * 100, 1),
                 rate = round((n / lag) * 100, 1))
-title <- "【緊急事態宣言対象】陽性者数(週平均)"
+title <- "【都道府県別】陽性者数(週平均)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
