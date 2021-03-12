@@ -1186,7 +1186,7 @@ subset %>%
 
 ### 週平均
 
-```{r, fig.height=30, fig.width=10, echo=FALSE}
+```{r, fig.height=15, fig.width=10, echo=FALSE}
 lagdiff_na <- function(n) {
   if (missing(n)) {
     return(NULL)
@@ -1196,9 +1196,10 @@ lagdiff_na <- function(n) {
 }
 
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
-  # dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
-  #                           "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
-  #                           "北海道", "沖縄県")) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
+                            "青森県", "岩手県", "宮城県", "秋田県", "山形県",
+                            "福島県", "北海道", "沖縄県")) %>%
   dplyr::filter(date >= lubridate::as_date("2021-01-03")) %>% 
   dplyr::mutate(week = lubridate::epiweek(date)) %>% 
   dplyr::group_by(key, week) %>% 
@@ -1209,7 +1210,7 @@ subset <- pref_daily %>% dplyr::mutate(key = pref) %>%
                 lag = dplyr::lag(n),
                 gain = round((diff / lag) * 100, 1),
                 rate = round((n / lag) * 100, 1))
-title <- "【都道府県別】陽性者数(週平均)"
+title <- "【緊急事態宣言対象＋東北6県＋北海道・沖縄】陽性者数(週平均)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
