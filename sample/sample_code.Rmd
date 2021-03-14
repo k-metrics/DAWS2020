@@ -242,8 +242,10 @@ df <- "https://raw.githubusercontent.com/reustle/covid19japan-data/master/docs/p
     ageBracket = forcats::fct_explicit_na(ageBracket, na_level = "非公表"),
     patientStatus = forcats::fct_explicit_na(patientStatus,
                                              na_level = "Unknown")
-  ) %>% 
-  dplyr::filter(date < lubridate::today())
+  ) 
+
+# %>% 
+#   dplyr::filter(date < lubridate::today())
 
 df
 ```
