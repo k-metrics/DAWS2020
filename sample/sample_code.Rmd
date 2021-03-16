@@ -1186,8 +1186,8 @@ subset %>%
 ```
 
 
-### 週平均
 
+### 週平均
 ```{r, fig.height=15, fig.width=10, echo=FALSE}
 lagdiff_na <- function(n) {
   if (missing(n)) {
@@ -1239,6 +1239,8 @@ subset %>%
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
 ```
+
+
 
 ### ヒートマップ
 ```{r, echo=FALSE, fig.height=30, fig.width=15}
