@@ -865,6 +865,8 @@ subset %>%
     ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
                        linetype = "solid", size = 0.25) + 
     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale, colour = key)) +
+  # ggplot2::geom_vline(xintercept = lubridate::as_date("2021-3-11"),
+  #                     linetype = "dotted", size = 0.3) +
     ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) + 
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") + 
@@ -1113,11 +1115,12 @@ subset %>%
 　  
 
 ## 緊急事態宣言地域比較
-```{r, echo=FALSE, fig.height=10}
+```{r, echo=FALSE, fig.height=15}
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
                             "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
-                            "北海道", "沖縄県"))
+                            "青森県", "岩手県", "宮城県", "秋田県", "山形県",
+                            "福島県", "北海道", "沖縄県"))
 title <- "【緊急事態宣言対象】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
@@ -1136,6 +1139,8 @@ subset %>%
     ggplot2::geom_hline(ggplot2::aes(yintercept = ma7, colour = key),
                         data = subset(subset, date == max(date)),
                         size = 0.5, linetype = "dotted") +
+    ggplot2::geom_vline(xintercept = lubridate::as_date("2021-03-11"),
+                        linetype = "dotted", size = 0.3) +
     ggplot2::scale_x_date(date_breaks = dbreaks, date_labels = dlabels) +
     ggplot2::theme(legend.position = 'none') + 
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
@@ -1153,18 +1158,24 @@ subset %>%
 subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
   dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
                             "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
-                            "北海道", "沖縄県")) %>% 
+                            "青森県", "岩手県", "宮城県", "秋田県", "山形県",
+                            "福島県", "北海道", "沖縄県")) %>% 
   dplyr::filter(date >= lubridate::as_date("2021-01-03"))
 title <- "【緊急事態宣言対象】陽性者数(単日)"
 xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
 ncol <- 3
-dbreaks <- "2 week"
+dbreaks <- "3 week"
 dlabels <- "%m/%d"
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+    ggplot2::geom_vline(xintercept = lubridate::as_date("2021-03-11"),
+                        linetype = "dashed", size = 0.25, colour = "dark red") +
+    ggplot2::geom_vline(xintercept = c(lubridate::as_date("2021-02-07"),
+                                       lubridate::as_date("2021-01-07")),
+                        linetype = "dotted", size = 0.3) +
     ggplot2::geom_bar(ggplot2::aes(y = n, fill = key), stat = "identity",
                       alpha = 0.25, width = 1.0) + 
     ggplot2::geom_line(ggplot2::aes(y = ma7, colour = key),
