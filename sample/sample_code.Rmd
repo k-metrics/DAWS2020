@@ -1243,7 +1243,7 @@ subset %>%
                         size = 0.5, linetype = "dotted") +
     ggrepel::geom_text_repel(ggplot2::aes(y = n, label = rate),
                                            colour = "gray25", size = 2.5) + 
-    ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10)) +
+    ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10, 12, 14)) +
     # ggplot2::scale_y_continuous(limits = c(0, 600)) +
     ggplot2::theme(legend.position = 'none') +
     ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
