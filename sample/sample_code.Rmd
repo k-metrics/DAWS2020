@@ -928,13 +928,16 @@ subset %>%
 #### 同箱ひげ図
 ```{r, fig.height=30, fig.width=10, echo=FALSE}
 subset <- pref_daily %>% dplyr::mutate(key = pref)
-title <- "【都道府県別】曜日別陽性者数分布"
+title <- "【都道府県別】曜日別陽性者数分布（最小最大正規化）"
 xlab <- ""
 ylab <- ""
 ncol <- 3
 
 subset %>% 
-  dplyr::filter(n > 0) %>% 
+  dplyr::filter(n > 0) %>%
+  dplyr::group_by(key) %>% 
+  dplyr::mutate(n = scale(n, center = min(n), scale = (max(n) - min(n)))) %>% 
+  dplyr::ungroup() %>% 
   dplyr::mutate(weekday = lubridate::wday(date, label = TRUE)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = weekday, y = n, colour = key)) + 
     ggplot2::stat_boxplot(geom = "errorbar", width = 0.3) + 
@@ -1243,14 +1246,70 @@ subset %>%
                         size = 0.5, linetype = "dotted") +
     ggrepel::geom_text_repel(ggplot2::aes(y = n, label = rate),
                                            colour = "gray25", size = 2.5) + 
-    ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10, 12, 14)) +
+    # ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10, 12, 14)) +
     # ggplot2::scale_y_continuous(limits = c(0, 600)) +
     ggplot2::theme(legend.position = 'none') +
-    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
 ```
 
+
+```{r, fig.height=15, fig.width=10, echo=FALSE}
+lagdiff_na <- function(n) {
+  if (missing(n)) {
+    return(NULL)
+  } else {
+    return(n - dplyr::lag(n))
+  }
+}
+
+
+subset <- pref_daily %>% dplyr::mutate(key = pref) %>% 
+  dplyr::filter(pref %in% c("愛知県", "岐阜県", "大阪府", "兵庫県", "京都府",
+                            "東京都", "埼玉県", "千葉県", "神奈川県", "福岡県",
+                            "青森県", "岩手県", "宮城県", "秋田県", "山形県",
+                            "福島県", "北海道", "沖縄県")) %>%
+  dplyr::filter(date >= lubridate::as_date("2021-01-03")) %>% 
+  dplyr::mutate(week = lubridate::epiweek(date)) %>% 
+  dplyr::group_by(key, week) %>% 
+  dplyr::summarise(m = mean(n)) %>% 
+  dplyr::mutate(n = scale(m, center = min(m), scale = (max(m) - min(m)))) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(key) %>% 
+  dplyr::mutate(diff = lagdiff_na(n),
+                lag = dplyr::lag(n),
+                gain = round((diff / lag) * 100, 1),
+                rate = round((n / lag) * 100, 1))
+title <- "【緊急事態宣言対象＋東北6県＋北海道・沖縄】最小最大正規化陽性者数(週平均)"
+xlab <- ""
+ylab <- "最小最大正規化陽性者数"
+sec_scale <- 50
+ncol <- 3
+dbreaks <- "2 week"
+dlabels <- "%m/%d"
+
+subset %>% 
+  ggplot2::ggplot(ggplot2::aes(x = week)) +
+    ggplot2::geom_vline(xintercept = lubridate::epiweek(
+      lubridate::as_date("2021-01-31")), size = 0.25, linetype = "dotted") + 
+    # ggplot2::geom_vline(xintercept = lubridate::epiweek(
+    #   lubridate::as_date("2021-03-07")), size = 0.25, linetype = "dotted") + 
+    ggplot2::geom_line(ggplot2::aes(y = n, colour = key)) + 
+    ggplot2::geom_hline(ggplot2::aes(yintercept = n, colour = key),
+                        data = subset(subset, week == max(week)),
+                        size = 0.5, linetype = "dotted") +
+    ggrepel::geom_text_repel(ggplot2::aes(y = n, label = rate),
+                                           colour = "gray25", size = 2.5) + 
+    # ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10, 12, 14)) +
+    # ggplot2::scale_y_continuous(limits = c(0, 600)) +
+    ggplot2::theme(legend.position = 'none') +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
+                  x = xlab, y = ylab)
+```
 
 
 ### ヒートマップ
