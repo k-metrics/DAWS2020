@@ -1249,8 +1249,8 @@ subset %>%
     # ggplot2::scale_x_continuous(breaks = c(2, 4, 6, 8, 10, 12, 14)) +
     # ggplot2::scale_y_continuous(limits = c(0, 600)) +
     ggplot2::theme(legend.position = 'none') +
-    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
-    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
+    ggplot2::facet_wrap(~ key, ncol = ncol, scales = "free_y") +
+    # ggplot2::facet_wrap(~ key, ncol = ncol, scales = "fixed") +
     ggplot2::labs(title = title, subtitle = subtitle, caption = caption,
                   x = xlab, y = ylab)
 ```
