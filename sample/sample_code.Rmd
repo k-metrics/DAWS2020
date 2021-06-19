@@ -1169,8 +1169,9 @@ xlab <- ""
 ylab <- "陽性者数"
 sec_scale <- 50
 ncol <- 3
-dbreaks <- "3 week"
-dlabels <- "%m/%d"
+dbreaks <- "1 month"
+dlabels <- "%m１"
+# dlabels <- "%m/%d"
 
 subset %>% 
   ggplot2::ggplot(ggplot2::aes(x = date)) + 
