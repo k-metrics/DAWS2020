@@ -385,48 +385,48 @@ gotoe <- news %>%
 goto <- gotos %>% 
   dplyr::bind_rows(gotoe)
 
-x_by_all %>% 
-  dplyr::mutate(hday = is.jholiday(target_date = date,
-                                   holiday_source = "./Covid19/syukujitsu.csv"),
-                wday = lubridate::wday(date, week_start = 1),
-                wday = dplyr::if_else(wday > 5, TRUE, FALSE),
-                wday = dplyr::if_else(hday | wday, ylim,  NA_integer_)) %>% 
-  ggplot2::ggplot(ggplot2::aes(x = date)) + 
-    # 土日・祝祭日
-    # ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
-    #                   fill = "red", alpha = 0.1) +
-    # 緊急事態宣言
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
-                        colour = "red", linetype = "dashed", size = 0.15) +
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 7000, label = news),
-                              colour = "red", size = 2.0, data = emergency) +
-    # GoTo開始
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
-                        colour = "magenta", linetype = "dashed", size = 0.25) + 
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 3500, label = news),
-                              size = 2.5, data = gotos, colour = "magenta") + 
-    # GoTo一時停止
-    ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
-                        colour = "dark cyan", linetype = "dashed", size = 0.25) + 
-    ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 4500, label = news),
-                              size = 2.5, data = gotoe, colour = "dark cyan") + 
-    # 単日
-    ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
-                      fill = "dark gray", alpha = 1.0) + 
-    # 移動平均
-    ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
-                       colour = "dark green", size = 0.5) + 
-    # 累計
-    ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
-                       colour = "dark green", size = 1.0) +
-    ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
-                  subtitle = subtitle, caption = caption,
-                  x = "", y = "") +
-    ggplot2::scale_y_continuous(
-      name = "陽性者数・移動平均（破線）",
-      sec.axis = ggplot2::sec_axis(~ . * sec_scale,
-                                    name = "累積陽性者数（折線）")
-    )
+# x_by_all %>% 
+#   dplyr::mutate(hday = is.jholiday(target_date = date,
+#                                    holiday_source = "./Covid19/syukujitsu.csv"),
+#                 wday = lubridate::wday(date, week_start = 1),
+#                 wday = dplyr::if_else(wday > 5, TRUE, FALSE),
+#                 wday = dplyr::if_else(hday | wday, ylim,  NA_integer_)) %>% 
+#   ggplot2::ggplot(ggplot2::aes(x = date)) + 
+#     # 土日・祝祭日
+#     # ggplot2::geom_bar(ggplot2::aes(y = wday), stat = "identity", width = 1.0,
+#     #                   fill = "red", alpha = 0.1) +
+#     # 緊急事態宣言
+#     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = emergency,
+#                         colour = "red", linetype = "dashed", size = 0.15) +
+#     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 7000, label = news),
+#                               colour = "red", size = 2.0, data = emergency) +
+#     # GoTo開始
+#     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotos,
+#                         colour = "magenta", linetype = "dashed", size = 0.25) + 
+#     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 3500, label = news),
+#                               size = 2.5, data = gotos, colour = "magenta") + 
+#     # GoTo一時停止
+#     ggplot2::geom_vline(ggplot2::aes(xintercept = date), data = gotoe,
+#                         colour = "dark cyan", linetype = "dashed", size = 0.25) + 
+#     ggrepel::geom_label_repel(ggplot2::aes(x = date, y = 4500, label = news),
+#                               size = 2.5, data = gotoe, colour = "dark cyan") + 
+#     # 単日
+#     ggplot2::geom_bar(ggplot2::aes(y = n), stat = "identity", width = 1.0,
+#                       fill = "dark gray", alpha = 1.0) + 
+#     # 移動平均
+#     ggplot2::geom_line(ggplot2::aes(y = ma7), linetype = "dashed",
+#                        colour = "dark green", size = 0.5) + 
+#     # 累計
+#     ggplot2::geom_line(ggplot2::aes(y = cum / sec_scale),
+#                        colour = "dark green", size = 1.0) +
+#     ggplot2::labs(title = paste0("【全国】陽性者数の推移（単日） @", datetime),
+#                   subtitle = subtitle, caption = caption,
+#                   x = "", y = "") +
+#     ggplot2::scale_y_continuous(
+#       name = "陽性者数・移動平均（破線）",
+#       sec.axis = ggplot2::sec_axis(~ . * sec_scale,
+#                                     name = "累積陽性者数（折線）")
+#     )
 # + 
 #     ggplot2::ylim(0, ylim)
 
